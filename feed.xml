@@ -1,0 +1,846 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Deadlock</title>
+    <description>A coding blog about various things I&#39;m interested in.
+</description>
+    <link>http://yourdomain.com/</link>
+    <atom:link href="http://yourdomain.com/feed.xml" rel="self" type="application/rss+xml" />
+    <pubDate>Tue, 16 Dec 2014 09:48:45 -0800</pubDate>
+    <lastBuildDate>Tue, 16 Dec 2014 09:48:45 -0800</lastBuildDate>
+    <generator>Jekyll v2.4.0</generator>
+    
+      <item>
+        <title>Go vs. C: A Language Comparison of Concurrent Programming Features</title>
+        <description>&lt;p&gt;This post is adapted from a term paper I wrote for my course on
+Parallel Processing at San José State University. My comparison with C is
+definitely very limited in scope—a more fair comparison would need
+consideration of many other libraries besides &lt;code&gt;pthreads&lt;/code&gt;. However, this
+treatment would have taken much more time than I had in the semester.
+In any case, my hope is that it is an enlightening nonetheless.&lt;/p&gt;
+
+&lt;hr&gt;
+
+&lt;p&gt;&lt;br/&gt;
+In 2009, Google released the first open-source version of their new
+compiled programming language Go. Go’s new and unusual approach to
+facilitating parallel programming aims to make it much simpler to use
+than most other languages, including C. This post will examine and compare
+different aspects of Go’s and C’s approach to, and ability to
+facilitate, parallel programming, including: ease of use, compile time,
+performance and efficiency, fine-grained control, and proneness to bugs
+such as deadlocks and race conditions.&lt;/p&gt;
+
+&lt;h1&gt;Introduction&lt;/h1&gt;
+
+&lt;p&gt;Google has created a new compiled programming language called Go. It was
+invented in 2007 by Robert Griesemer, Rob Pike, and Ken Thompson, and
+first released as open source in 2009 &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.; Golang.org, n.d.)&lt;/a&gt;. Their main goal
+was to design a language that would make life easier for software
+engineers &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;. Go aims to be as easy to use as a scripting
+language, but as fast as a compiled language &lt;a href=&quot;#faq&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;. It features automatic
+memory management (garbage collection), type safety, a built-in suite of
+developer tools, and most importantly, its built-in concurrency
+primitives. Go takes a new and unusual approach to concurrency which
+makes it much simpler to use than C. The traditional approach to safe
+multithreading, as in C, is to use synchronization primitives, such as
+semaphores, locks, and condition variables. Go uses a different model,
+inspired by the formal language Communicating Sequential Processes
+(CSP);&lt;sup id=&quot;fnref1&quot;&gt;&lt;a href=&quot;#fn1&quot; rel=&quot;footnote&quot;&gt;1&lt;/a&gt;&lt;/sup&gt; the mantra of Go’s memory model is: “Do not communicate by
+sharing memory; instead, share memory by
+communicating” &lt;a href=&quot;#sharebycommunicating&quot;&gt;(Gerrand, 2010)&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;This paper will compare different aspects of C and Go’s approach to, and
+ability to facilitate, parallel programming, including: ease of use,
+compile time, performance and efficiency, fine-grained control, and
+proneness to bugs such as deadlocks and race conditions. There are
+several C libraries which facilitate multithreaded programming, and
+since comparing C’s approach with all libraries would be infeasible,
+this paper will only discuss the approach with the POSIX Threads (or
+pthreads) library, since it represents and showcases the most
+traditional and standard approach to managing multithreaded
+applications.&lt;/p&gt;
+
+&lt;h1&gt;Overview of Go&lt;/h1&gt;
+
+&lt;p&gt;In order to fully understand Go’s approach to concurrency, it is
+necessary to cover some of the fundamentals of the language. Go includes
+a few built-in primitives: slices, maps, and channels. The latter is
+specifically designed to facilitate concurrency through Go’s shared
+memory model via goroutines.&lt;/p&gt;
+
+&lt;h2 id=&quot;goroutines&quot;&gt;Goroutines&lt;/h2&gt;
+
+&lt;p&gt;The basic thread of execution in Go is called a goroutine, so named
+because the Go team felt the existing terms (threads, coroutines,
+processes, etc.) convey inaccurate connotations &lt;a href=&quot;#effectivego&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;. Goroutines
+have a simpler model. They are simply functions executing in the same
+address space. According to Golang.org’s document “Effective Go,”&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;[They are] lightweight, costing little more than the allocation of
+stack space. And the stacks start small, so they are cheap, and grow
+by allocating (and freeing) heap storage as required. Goroutines are
+multiplexed onto multiple OS threads so if one should block, such as
+while waiting for I/O, others continue to run. Their design hides many
+of the complexities of thread creation and management &lt;a href=&quot;#effectivego&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;The traditional approach to thread management can indeed be cumbersome.
+For example, in C with pthreads, to create a handful of threads which
+execute in parallel, the programmer has to do something like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;kt&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thd_handle&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;NUM_THREADS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;];&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NUM_THREADS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;pthread_create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;thd_handle&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;NULL&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SomeFunction&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;NUM_THREADS&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;pthread_join&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thd_handle&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;**&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// do something with ret&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;The programmer must explicitly store all threads in a variable, and then
+wait for each individual thread to exit, doing something with its return
+value after each successful termination. Also, because pthreads must
+take untyped (void) parameters, the data may have to be casted to and
+from its actual type multiple times, while making sure pointers are
+dereferenced appropriately–giving us such unwieldy code as
+&lt;code&gt;(void**)&amp;amp;ret&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;Go’s approach is much simpler. To launch a goroutine, the programmer
+simply puts the keyword &lt;code&gt;go&lt;/code&gt; in front of a function call. For example,
+&lt;code&gt;go list.Sort()&lt;/code&gt; will launch a goroutine which sorts &lt;code&gt;list&lt;/code&gt;
+concurrently, without waiting for it to finish. In this trivial example,
+though, we don’t see how to handle return values or shared data
+synchronization. In order for goroutines to communicate, Go makes use of
+primitives called &lt;em&gt;channels&lt;/em&gt;.&lt;/p&gt;
+
+&lt;h2&gt;Channels&lt;/h2&gt;
+
+&lt;p&gt;Go’s approach to concurrency is designed to avoid explicit
+synchronization by the programmer, which can be difficult to manage.
+Traditionally, synchronization of data occurs through the use of
+primitives such as semaphores, locks, and condition variables.
+Typically, the programmer must protect shared data and critical code
+blocks from hazards by using something like a mutex variable with a
+condition variable.&lt;/p&gt;
+
+&lt;p&gt;For example, with the pthreads library in C, to synchronize a
+multithreaded program that fits the producer–consumer model,&lt;sup id=&quot;fnref2&quot;&gt;&lt;a href=&quot;#fn2&quot; rel=&quot;footnote&quot;&gt;2&lt;/a&gt;&lt;/sup&gt; one
+first has to set up a synchronized data structure which encapsulates
+both the payload and its synchronization locks:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;k&quot;&gt;typedef&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;pthread_mutex_t&lt;/span&gt;     &lt;span class=&quot;n&quot;&gt;mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;pthread_cond_t&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;cv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;         &lt;span class=&quot;n&quot;&gt;data&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;flag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;flag&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;PTHREAD_MUTEX_INITIALIZER&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;PTHREAD_COND_INITIALIZER&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+    &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;};&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Then, any time the programmer wishes to perform operations on the data,
+and then have an independent thread wait for changes to that data before
+proceeding, it is necessary to explicitly lock the variable, perform the
+operations, and signal the condition to allow the waiting threads to
+execute.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;    &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// create worker threads&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;data&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;someValue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_cond_broadcast&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Similarly, within the worker thread, one must wait on the mutex lock,
+then wait on the condition variable before doing something with the
+changed data.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;    &lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;workerThread&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_cond_wait&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cv&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;
+            &lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// do something with ourFlag.data&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ourFlag&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;In order to avoid data hazards and/or race conditions, access to the
+data must be explicitly managed by the programmer by bundling the
+synchronization primitives with the payload, and then acquiring and
+releasing locks and signaling to the other threads when they may
+continue. The use of &lt;em&gt;semaphores&lt;/em&gt; can make this a bit simpler, but they
+are limited when dealing with multiple consumer threads, so condition
+variables are the best general solution &lt;a href=&quot;#multicoreprogramming&quot;&gt;(Akhter &amp;amp; Roberts, 2006, p. 132)&lt;/a&gt;.
+The explicit management required by this approach is exactly the kind of
+manual tracking that Go was designed to avoid.&lt;/p&gt;
+
+&lt;p&gt;Go takes a different approach to the problem of thread communication and
+synchronization through the use of built-in primitives called channels.
+A &lt;em&gt;channel&lt;/em&gt; is defined by the Go Language Specification as a primitive
+which “provides a mechanism for two concurrently executing functions to
+synchronize execution and communicate by passing a value of a specified
+element type” &lt;a href=&quot;#spec&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;. They work in a manner analogous to Unix pipes—data
+values are written to them (&lt;em&gt;sent&lt;/em&gt;) and read from them (&lt;em&gt;received&lt;/em&gt;) in a
+first-in, first-out (FIFO) manner. In fact, the document “Effective Go”
+says that they “can... be seen as a type-safe generalization of Unix
+pipes” &lt;a href=&quot;#sharebycommunicating&quot;&gt;(Gerrand, 2010)&lt;/a&gt;. The typical flow of a multithreaded program
+in Go involves setting up communication channels, and then passing these
+channels to all goroutines which need to communicate. Worker goroutines
+send processed data to the channel, and goroutines which need to wait on
+work done by others will do so by receiving from this channel.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-go&quot; data-lang=&quot;go&quot;&gt;&lt;span class=&quot;kd&quot;&gt;func&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;WorkerGoroutine&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;data&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[]&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;c&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;range&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;data&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;SomeOperation&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;d&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;c&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;result&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;nb&quot;&gt;close&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;c&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;kd&quot;&gt;func&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;main&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;var&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;data&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[]&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;c1&quot;&gt;// some data&lt;/span&gt;
+    &lt;span class=&quot;kd&quot;&gt;var&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;c&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;make&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;BUF_SIZE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;go&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;WorkerGoroutine&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;data&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;c&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;c1&quot;&gt;// blocks until there is data to receive from c and stops when c&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// has been closed&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;result&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;range&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;c&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// do something with result&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;As the reader can see, there is no need to set up any explicit data
+synchronization. Channels are inherently hazard safe, and blocking and
+signaling are done automatically.&lt;/p&gt;
+
+&lt;p&gt;The above example used &lt;em&gt;buffered&lt;/em&gt; channels. Channels can either be
+buffered or not, depending on their use case. An unbuffered channel c
+would be declared like so (without a second parameter):
+&lt;code&gt;c := make(chan int)&lt;/code&gt; Sending on an unbuffered channel will block until
+the receiver receives the value, whereas sending on a buffered channel
+will only block if the buffer is full, and receives will block only if
+the buffer is empty. One use of this is to limit throughput. The
+document “Effective Go” includes an example in which one can use
+channels like semaphores to limit the number of simultaneous goroutines
+that handle requests &lt;a href=&quot;#effectivego&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-go&quot; data-lang=&quot;go&quot;&gt;&lt;span class=&quot;kd&quot;&gt;var&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;sem&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;make&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;MaxOutstanding&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+&lt;span class=&quot;kd&quot;&gt;func&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;init&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;MaxOutstanding&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// initialize semaphore with one value&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;sem&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;kd&quot;&gt;func&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;Serve&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;queue&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Request&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// handle the requests as they come&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;req&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;k&quot;&gt;range&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;queue&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// Wait for active queue to drain.&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;sem&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;go&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;func&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;req&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Request&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;nx&quot;&gt;process&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+            &lt;span class=&quot;c1&quot;&gt;// Done; enable next request to run.&lt;/span&gt;
+            &lt;span class=&quot;nx&quot;&gt;sem&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;}(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;req&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;The Go team does, however, acknowledge that the approach with channels
+is not a universal solution. The Go team says that “This approach can be
+taken too far. Reference counts may be best done by putting a mutex
+around an integer variable, for instance” &lt;a href=&quot;#sharebycommunicating&quot;&gt;(Gerrand, 2010)&lt;/a&gt;. Channels
+are ultimately a high level solution, and sometimes lower-level
+solutions are needed. For this purpose, the Go standard library does
+include packages with lower-level synchronization primitives, such as
+the &lt;code&gt;sync&lt;/code&gt; package, which includes mutex types and condition
+types &lt;a href=&quot;#package-sync&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;. See section &lt;a href=&quot;#fine&quot;&gt;Fine-grained control&lt;/a&gt; for more detail.&lt;/p&gt;
+
+&lt;h2&gt;Memory model&lt;/h2&gt;
+
+&lt;p&gt;From the previous examples, one can understand the difference in
+approach. With the traditional approach to synchronization in C, the
+memory model can be very cumbersome. Much of the hazard safety is left
+as the responsibility of the programmer, who must explicitly restrict
+access to shared data by communicating to other threads, via
+synchronization primitives, when the data is being used and when the
+data is free. Go makes this easier for the programmer with a simpler
+shared memory model. Data is never actively shared between separate
+threads of communication—it is just passed around in channels. Thus,
+data races cannot happen, by design, when the data are passed between
+channels. The document “Effective Go” explains that&lt;/p&gt;
+
+&lt;blockquote&gt;
+&lt;p&gt;One way to think about this model is to consider a typical
+single-threaded program running on one CPU. It has no need for
+synchronization primitives. Now run another such instance; it too
+needs no synchronization. Now let those two communicate; if the
+communication is the synchronizer, there’s still no need for other
+synchronization &lt;a href=&quot;#sharebycommunicating&quot;&gt;(Gerrand, 2010)&lt;/a&gt;.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;This is why the Go team has reduced the model to a slogan: “&lt;em&gt;Do not
+communicate by sharing memory; instead, share memory by
+communicating.&lt;/em&gt;”&lt;sup id=&quot;fnref3&quot;&gt;&lt;a href=&quot;#fn3&quot; rel=&quot;footnote&quot;&gt;3&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+
+&lt;h1&gt;Proneness to deadlocks and race conditions&lt;/h1&gt;
+
+&lt;p&gt;Although Go takes a very different approach to concurrency than C, it is
+ultimately a lower level language, and thus it can be easy to write code
+which does not behave as expected. While Go’s concurrency primitives can
+make it easier to avoid data hazards, they are not a panacea—the
+programmer does still have to be mindful of race conditions.&lt;/p&gt;
+
+&lt;h2&gt;A simple example&lt;/h2&gt;
+
+&lt;p&gt;In C, without explicitly locking critical code, data races are very
+likely to happen. As a simple example, consider a multithreaded program
+which increments a shared integer variable a set number of times.&lt;sup id=&quot;fnref4&quot;&gt;&lt;a href=&quot;#fn4&quot; rel=&quot;footnote&quot;&gt;4&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1000000&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;If, say, 4 threads were running the sum function concurrently, then by
+the time all threads have finished, the value in the &lt;code&gt;ret&lt;/code&gt; variable
+would not be 4 million. It would, in fact, be a different number every
+time the program was run. One could easily construct a Go program with
+analogous behavior.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-go&quot; data-lang=&quot;go&quot;&gt;&lt;span class=&quot;kd&quot;&gt;func&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;ret&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;done&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1000000&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;nx&quot;&gt;done&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;So the question that remains is: how easy is it to avoid race conditions
+like this?&lt;/p&gt;
+
+&lt;h2&gt;Avoiding race conditions&lt;/h2&gt;
+
+&lt;p&gt;As we have seen, in C, to avoid race conditions, one could use a mutex
+variable to protect any shared data. To fix the example C code above,
+one could lock just before incrementing the shared variable, and then
+unlock just after.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;void&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1000000&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;((&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;*&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ret&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Similarly, for analogous Go code, one could use a buffered channel of
+size 1 to restrict access to the sum variable to one goroutine at a
+time.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-go&quot; data-lang=&quot;go&quot;&gt;&lt;span class=&quot;kd&quot;&gt;func&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;sumChan&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;done&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;&amp;lt;&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1000000&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// sumChan has a buffer of size 1, so receiving blocks if there&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// is another goroutine currently incrementing the sum&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;cur&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;sumChan&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;cur&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;++&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;sumChan&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;cur&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;nx&quot;&gt;done&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;In this simple case, the solutions are not terribly different. However,
+as we can gather from the previous Go code examples, channels can be
+very flexible in their usage. Where C needs distinct synchronization
+primitives, such as mutex variables, condition variables, and
+semaphores, to handle all of the different use cases, Go’s channels can
+be used: as a hazard-safe conduit to share actual data; to signal when a
+goroutine is finished; and as a way to limit the throughput of the
+program. In other words, good solutions exist in both languages, but
+Go’s channels provide a much more effortless way to design programs
+which are safe from race conditions.&lt;/p&gt;
+
+&lt;h3&gt;Detecting race conditions&lt;/h3&gt;
+
+&lt;p&gt;No matter how skilled a programmer is, race conditions will inevitably
+arise. Therefore, tools to help the programmer detect race conditions
+are necessary. Various tools exist which analyze a C program’s runtime
+to aid the detection of race conditions. A common tool is Valgrind,
+which includes the race detector Helgrind &lt;a href=&quot;#valgrind&quot;&gt;(Valgrind.org, n.d.)&lt;/a&gt;. The Go tool chain
+comes packaged with a race detector, which is built on the
+ThreadSanitizer race detector for C/C++ &lt;a href=&quot;#race&quot;&gt;(Vyukov &amp;amp; Gerrand, n.d.)&lt;/a&gt;. To run the race detector
+on a Go program, one can simply use the &lt;code&gt;-race&lt;/code&gt; option when compiling
+(e.g. &lt;code&gt;go run -race mysrc.go&lt;/code&gt;). Similarly, &lt;code&gt;gcc&lt;/code&gt; comes bundled with
+ThreadSanitizer, so to run the race detector on a C program, one would
+simply compile with the &lt;code&gt;-fsanitize=thread&lt;/code&gt; and &lt;code&gt;-fPIE&lt;/code&gt; options and then
+link to &lt;code&gt;-fsanitize=thread -pie&lt;/code&gt; &lt;a href=&quot;#threadsanitizer&quot;&gt;(Code.google.com, n.d.)&lt;/a&gt;. Therefore, the options
+for helping detect race conditions are similar for both C and Go.&lt;/p&gt;
+
+&lt;h2&gt;Deadlocks&lt;/h2&gt;
+
+&lt;p&gt;Deadlocks are one of the trickiest bugs to remediate. Often, they are
+transient and very difficult to trace (especially in a large project).
+Deadlocks take care to avoid in both C and Go. Mechanisms and
+methodologies exist in both languages to aid in avoiding deadlocks.&lt;/p&gt;
+
+&lt;h3&gt;Data segmentation/replication&lt;/h3&gt;
+
+&lt;p&gt;If it is possible, replicating the shared resource for each thread will
+eliminate deadlocks, because no locking mechanism is needed for
+synchronization &lt;a href=&quot;#multicoreprogramming&quot;&gt;(Akhter &amp;amp; Roberts, 2006, p. 178)&lt;/a&gt;. For example, in C, if the
+shared resource is an array, then replication can be done with the
+&lt;code&gt;memcpy&lt;/code&gt; function. Although, if the data set is not small, replicating
+can consume too much memory. Therefore, if the concurrent operations are
+independent from each other, it is better to segment the shared data,
+rather than replicate it.&lt;/p&gt;
+
+&lt;p&gt;In Go, segmentation can be done easily with its built-in &lt;code&gt;slice&lt;/code&gt; type.
+Go’s &lt;code&gt;slice&lt;/code&gt; type is similar to Python’s &lt;code&gt;slice&lt;/code&gt; type. Slices are
+references to an underlying array, and they provide operators which make
+it easy to segment that array. For example, one can “reslice” a slice
+with the bracket operator. If &lt;code&gt;arr&lt;/code&gt; is a slice variable, then
+&lt;code&gt;arr[:len(arr)/2]&lt;/code&gt; will return a slice which can access the first half
+of &lt;code&gt;arr&lt;/code&gt;’s elements.&lt;sup id=&quot;fnref5&quot;&gt;&lt;a href=&quot;#fn5&quot; rel=&quot;footnote&quot;&gt;5&lt;/a&gt;&lt;/sup&gt; Thus, if &lt;code&gt;sum&lt;/code&gt; is a function which returns the
+sum of every element of an integer slice, then&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-go&quot; data-lang=&quot;go&quot;&gt;&lt;span class=&quot;nx&quot;&gt;arr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[]&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;7&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;8&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;9&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;4&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;nx&quot;&gt;partSums&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;make&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;go&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[:&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;],&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;partSums&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;go&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;sum&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;len&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;/&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:],&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;partSums&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;nx&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;y&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;partSums&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;partSums&lt;/span&gt;
+&lt;span class=&quot;nx&quot;&gt;fmt&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Println&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;x&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;y&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;will launch two goroutines which sum the first and second half of &lt;code&gt;arr&lt;/code&gt;,
+respectively, and receive both partial sums from the &lt;code&gt;partSums&lt;/code&gt; channel.
+Then, these two partial sums are added together to yield the correct sum
+of all the elements in arr—in this case, 12. Segmenting the data like
+this avoids the need for any communication between the two goroutines,
+as well as the need to replicate any data (since slices are simply
+references). A similar functionality could be achieved in C, although
+the segmentation would have to be done manually; the &lt;code&gt;sum&lt;/code&gt; function, for
+instance, might need to take parameters for the beginning and ending
+indices of which elements in the shared array to sum. In both languages,
+if data segmentation is possible, this is a good way to avoid deadlocks.
+It obviates the need to use any kind of synchronization locks.&lt;/p&gt;
+
+&lt;h3&gt;Try and back off&lt;/h3&gt;
+
+&lt;p&gt;However, when locks are unavoidable, there exist methodologies in both C
+and Go to help avoid deadlocking. When using mutex variables to guard
+critical code sections, one approach is to instruct a thread to release
+any resources it currently holds if locking another resource results in
+failure &lt;a href=&quot;#multicoreprogramming&quot;&gt;(Akhter &amp;amp; Roberts, 2006, p. 180)&lt;/a&gt;. In C, this can be done with the
+&lt;code&gt;pthread&lt;/code&gt; function &lt;code&gt;pthread_mutex_trylock&lt;/code&gt;.&lt;sup id=&quot;fnref6&quot;&gt;&lt;a href=&quot;#fn6&quot; rel=&quot;footnote&quot;&gt;6&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;    &lt;span class=&quot;k&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_mutex_lock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pthread_mutex_trylock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;break&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;pthread_mutex_unlock&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mutex2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;In Go, however, if mutex variables absolutely must be used, this
+approach may not work, as mutex behavior is more strict than in C’s
+&lt;code&gt;pthread&lt;/code&gt; library. In Go, there is no analogous “trylock” function on
+its mutex type; furthermore, it is a runtime error if the &lt;code&gt;Unlock&lt;/code&gt;
+function is called on a mutex which is already unlocked,&lt;a href=&quot;#package-sync&quot;&gt;(Golang.org, n.d.)&lt;/a&gt; so
+greater care must be given to restrict the ordering of lock and unlock
+operations.&lt;/p&gt;
+
+&lt;h3&gt;Go’s &lt;code&gt;select&lt;/code&gt; statement&lt;/h3&gt;
+
+&lt;p&gt;However, in a typical Go program where channels suffice for
+synchronization, a different approach may be used to avoid deadlocking
+on channel blocks. In Go, the &lt;code&gt;select&lt;/code&gt; statement is analogous to a
+&lt;code&gt;switch&lt;/code&gt; statement for channels. Essentially, the cases will try to
+execute a given operation on a channel, and if that operation &lt;em&gt;would&lt;/em&gt;
+block, then it tries a different case.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-go&quot; data-lang=&quot;go&quot;&gt;    &lt;span class=&quot;k&quot;&gt;select&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;case&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;ch1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// use a&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;case&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;ch2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// use b&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;default&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;c1&quot;&gt;// receiving from both a and b would block&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Here, if the program can receive from the channel &lt;code&gt;ch1&lt;/code&gt;, then it assigns
+the received value to the variable &lt;code&gt;a&lt;/code&gt;, and &lt;code&gt;a&lt;/code&gt; can be used within the
+code below the case statement. Similarly, if the program can receive
+from &lt;code&gt;ch2&lt;/code&gt;, it assigns the received value to the variable &lt;code&gt;b&lt;/code&gt;, which can
+be used in the code following the case statement. If both &lt;code&gt;ch1&lt;/code&gt; and
+&lt;code&gt;ch2&lt;/code&gt; are ready, the program picks one case at random. If neither are
+ready, the code in the default case is run. Therefore, a tactic
+analogous to the “try and back off” method can be used.&lt;sup id=&quot;fnref7&quot;&gt;&lt;a href=&quot;#fn7&quot; rel=&quot;footnote&quot;&gt;7&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-go&quot; data-lang=&quot;go&quot;&gt;    &lt;span class=&quot;nx&quot;&gt;OuterLoop&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;nx&quot;&gt;a&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;ch1&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;select&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;case&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;b&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;ch2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+            &lt;span class=&quot;k&quot;&gt;break&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;OuterLoop&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;default&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+            &lt;span class=&quot;nx&quot;&gt;ch1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;a&lt;/span&gt;
+            &lt;span class=&quot;c1&quot;&gt;// wait&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// use a and b&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Given how flexible channels are in general, there are, of course, many
+more ways one can use the select statement to avoid deadlocks. For
+example, in his article “Go Concurrency Patterns: Timing out, moving
+on,” Andrew Gerrand describes how one could implement a simple timeout
+operation with channels &lt;a href=&quot;#concurrency-patterns&quot;&gt;(Gerrand, n.d.)&lt;/a&gt;.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-go&quot; data-lang=&quot;go&quot;&gt;&lt;span class=&quot;nx&quot;&gt;timeout&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;make&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kd&quot;&gt;chan&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;bool&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;go&lt;/span&gt; &lt;span class=&quot;kd&quot;&gt;func&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+    &lt;span class=&quot;nx&quot;&gt;time&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Sleep&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;nx&quot;&gt;time&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;Second&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;nx&quot;&gt;timeout&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;kc&quot;&gt;true&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}()&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;select&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;case&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;ch&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// a read from ch has occurred&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;case&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;lt;-&lt;/span&gt;&lt;span class=&quot;nx&quot;&gt;timeout&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;// the read from ch has timed out&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;In the above code, a “timeout” channel is created, and an anonymous
+function is launched in a goroutine which sends a value to the timeout
+channel after one second. In the select statement that follows, the main
+goroutine is blocked until one of the select cases can happen. If it
+takes too long to receive from ch (i.e., if the operation takes too
+long), then the select statement receives from the timeout channel and
+the program continues.&lt;/p&gt;
+
+&lt;h1 id=&quot;fine&quot;&gt;Fine-grained control&lt;/h1&gt;
+
+&lt;p&gt;As we have seen, Go is intended to be somewhere in between the level of
+a scripting language and that of a lower-level language, like C. It is
+not surprising, then, to learn that C provides a finer level of control
+over the behavior of the program’s threads than Go does. However, Go
+does include some reflective functions which provide some finer-grained
+control over the execution of the program, if so needed. Ultimately,
+though, the memory models of Go and C are anything but isomorphic, so
+the comparison between each language’s runtime may not be apt.&lt;/p&gt;
+
+&lt;h2&gt;Thread attributes in C&lt;/h2&gt;
+
+&lt;p&gt;In C with &lt;code&gt;pthreads&lt;/code&gt;, there are a few standard thread attributes which
+can be set when threads are created. These attributes include: its
+detached or joinable state; scheduling inheritance, policies,
+parameters, and contention scopes, and stack size &lt;a href=&quot;#pthreads&quot;&gt;(Barney, n.d.)&lt;/a&gt;. As an
+example, if the programmer knows that a thread will never need to join
+with another, they can set the thread’s attributes such that it will
+always be detached, and thus, not joinable with any thread, for the
+duration of its execution.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;kt&quot;&gt;pthread_t&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;thread&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+&lt;span class=&quot;kt&quot;&gt;pthread_attr_t&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;attr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;pthread_attr_init&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;attr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;pthread_attr_setdetachstate&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;attr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PTHREAD_CREATE_DETACHED&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+
+&lt;span class=&quot;n&quot;&gt;pthread_create&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;kr&quot;&gt;thread&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;attr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;SomeFunction&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Similarly, one can set the scheduling policy of a thread with
+attributes. There are three scheduling types in pthreads: &lt;code&gt;SCHED_FIFO&lt;/code&gt;
+(first-in, first-out), &lt;code&gt;SCHED_RR&lt;/code&gt; (round robin), or
+&lt;code&gt;SCHED_OTHER&lt;/code&gt;,&lt;a href=&quot;#pthreads&quot;&gt;(Barney, n.d.)&lt;/a&gt;-attributes which can be set in a similar manner.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-c&quot; data-lang=&quot;c&quot;&gt;&lt;span class=&quot;n&quot;&gt;pthread_attr_init&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;attr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;pthread_attr_setschedpolicy&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;&amp;amp;&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;attr&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;SCHED_FIFO&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;);&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;This example would set the execution policy of any threads created with
+the &lt;code&gt;attr&lt;/code&gt; variable to run in a FIFO order. Similar mechanisms exist for
+all the other attributes. Some local implementations of pthreads include
+a &lt;code&gt;pthread_setaffinity_np&lt;/code&gt; function, which allows the programmer to
+specify which processor/core they would like the thread to run
+on &lt;a href=&quot;#pthreads&quot;&gt;(Barney, n.d.)&lt;/a&gt;.&lt;/p&gt;
+
+&lt;h2&gt;Fine-grained control in Go&lt;/h2&gt;
+
+&lt;p&gt;As this author has previously discussed, the memory model in Go is much
+different. Go does not run traditional threads—it runs goroutines. This
+memory model is designed to be much more lightweight and easier to use
+than the traditional approach; thus, many of the fine-grained details
+are abstracted away from the programmer. However, because these details
+are not always avoidable, Go does provide some packages which allow
+access to lower-level synchronization primitives and runtime scheduling.&lt;/p&gt;
+
+&lt;p&gt;For example, the &lt;code&gt;sync&lt;/code&gt; package provides more traditional
+synchronization primitives, such as mutex and condition variables, as
+well as the &lt;code&gt;WaitGroup&lt;/code&gt; type, which allows the programmer to explicitly
+wait on a set of goroutines to finish. The subpackage &lt;code&gt;sync/atomic&lt;/code&gt;
+provides even lower-level functions which assist in implementation of
+synchronization algorithms by providing various operations which are
+guaranteed to be atomic &lt;a href=&quot;#package-atomic&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;. The &lt;code&gt;runtime&lt;/code&gt; package provides
+functions which interact with Go’s runtime directly. Some example
+functions include: &lt;code&gt;runtime.Gosched()&lt;/code&gt;, which yields the current
+goroutine, allowing others to run; &lt;code&gt;runtime.LockOSThread()&lt;/code&gt;, which locks
+a goroutine to whichever OS thread it happens to be running on; and
+various reflective functions which report runtime information, such as
+&lt;code&gt;runtime.Stack()&lt;/code&gt;, which prints stack trace information &lt;a href=&quot;#package-runtime&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;Go does not provide mechanisms to control thread attributes as seen in
+section &lt;a href=&quot;#fine&quot;&gt;Fine-grained control&lt;/a&gt;, however, because goroutines operate on a higher level
+than threads. As discussed in section &lt;a href=&quot;#goroutines&quot;&gt;Goroutines&lt;/a&gt;, goroutines are
+managed dynamically and multiplexed onto multiple OS threads, so
+providing lower-level control mechanisms than those shown above is not
+really feasible. Most of the time, this works out in the programmer’s
+favor, as they do not have to manage as much manually, but these control
+mechanisms can be missed if the application calls for them.&lt;/p&gt;
+
+&lt;h1&gt;Performance&lt;/h1&gt;
+
+&lt;p&gt;For the most part, the comparisons here are not directly related to each
+language’s ability to facilitate parallel programs, but performance is
+nonetheless an important factor when deciding which language to
+implement an application with.&lt;/p&gt;
+
+&lt;h2 id=&quot;compilation&quot;&gt;Compilation time&lt;/h2&gt;
+
+&lt;p&gt;One of the major reasons why Google decided to write a new compiled
+language was because the compile times of their large C++ code bases
+grew to be a significant engineering problem &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;. Rob Pike
+discusses this problem in the document “Go at Google” &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;. C and
+C++ use preprocessor directives to manage dependencies, which does not
+scale well for very large projects. Typically, a C/C++ header file will
+use &lt;code&gt;#ifndef&lt;/code&gt; guards to protect against errors when multiple source
+files &lt;code&gt;#include&lt;/code&gt; the same library. If a dependency is included multiple
+times, after the first compilation, the contents are disregarded, but
+the compiler still opens and scans the whole file. As an example, Pike
+noted that for one large project at Google in 2007, a code base of 4.2
+MB expanded to over 8 GB when delivered to the compiler because of all
+the repeated dependencies &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;. For this reason, it was
+impractical to build large projects on a single machine, so Google had
+to design a large distributed compilation system. With an early version
+of this distributed system, the binary took 45 minutes to compile. At
+the time of this writing, Pike’s document says the same 2007 binary
+takes 27 minutes to compile today.&lt;/p&gt;
+
+&lt;p&gt;Pike says that “the origin myth for Go states that it was during one of
+those 45 minute builds that Go was conceived” &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;. The Go
+compiler was based on an approach that the Plan 9 team designed to
+remedy the repeated dependency problems described above.&lt;sup id=&quot;fnref8&quot;&gt;&lt;a href=&quot;#fn8&quot; rel=&quot;footnote&quot;&gt;8&lt;/a&gt;&lt;/sup&gt;
+Essentially, how it works is it builds a dependency graph from the
+source files themselves by reading all of the import statements from
+every file, and then compiling the lowest-level dependencies first by
+compiling every source file in topologically sorted order. Note that
+this implies that there are no cycles in the dependency graph—it was
+decided to make circular dependencies illegal &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;. When the
+compiler progresses in its traversal of the sorted dependency graph, if
+the file being built includes a file which has already been compiled, it
+only reads that dependency’s object file, not its source code. Pike
+notes that this design “has the important effect that when the compiler
+executes an import clause, it opens exactly one file, the object file
+identified by the string in the import clause…in effect, the compiler
+writes the header file when the Go source file is
+compiled” &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;.&lt;sup id=&quot;fnref9&quot;&gt;&lt;a href=&quot;#fn9&quot; rel=&quot;footnote&quot;&gt;9&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+
+&lt;p&gt;In addition to this, the language itself was designed with efficient
+compile time in mind. Its compact grammar and regular syntax makes it
+much easier to parse &lt;a href=&quot;#decl-syntax&quot;&gt;(Pike, n.d.)&lt;/a&gt;. For instance, requiring opening braces
+to be kept on the same line as its function declaration allowed
+semicolon insertion to happen without the need for lookahead &lt;a href=&quot;#faq&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;. Go
+does not have inheritance; instead, it relies on a simple interface
+system, which greatly simplifies the underlying type system, and the
+structure of Go programs &lt;a href=&quot;#faq&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;When testing the results of this design on a large binary, Google
+recorded a speedup of about 40x &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;. During one of Google’s Tech
+Talks in 2009, Rob Pike gave a demonstration of how fast the Go compiler
+was. On Pike’s single-core laptop, building the entire Go source tree,
+which he estimated at about 120,000–130,000 lines and included “regular
+expressions, flags, concurrency primitives, the runtime, [and] the
+garbage collector…” took about 8 seconds &lt;a href=&quot;#tech-talk&quot;&gt;(Pike, 2009)&lt;/a&gt;. Today, the standard
+library comes in at over 400,000 lines of code, and on this author’s
+laptop with a 4-core Intel i3-3110M CPU, compile time averages around 8
+seconds on a cold cache. It is clear that for large projects, the
+compile time of Go wins over C/C++.&lt;/p&gt;
+
+&lt;h2&gt;Raw performance&lt;/h2&gt;
+
+&lt;p&gt;Unsurprisingly, typical performance of a Go program is much faster than
+most scripting languages and slightly slower than most other lower-level
+languages, like C. In Debian’s Computer Language Benchmarks Game, in
+their “Ten Tiny Examples,” Go rates at 8^th^ on a scale comparing
+(program time / fastest program time), coming in at the same order of
+magnitude of relative performance of Java, Scala, Haskell, and
+OCaml &lt;a href=&quot;#debian-benchmark&quot;&gt;(Debian, n.d.)&lt;/a&gt;. These were slightly slower than C++, Ada, C, and
+Fortran, but much faster than PHP, Perl, Python, Ruby, and Hack. It is
+worth mentioning, however, that Debian does disclaim that language
+comparison benchmarks are not representative of real-world performance;
+they warn not to jump to conclusions based on these tests because
+“programming languages are compared against each other as though their
+designers intended them to be used for the exact same purpose – that
+just isn’t so” &lt;a href=&quot;#debian-benchmark-conclusion&quot;&gt;(Debian, n.d.)&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;In 2011, Robert Hundt, one of Google’s own software engineers, published
+a paper entitled “Loop Recognition in C++/Java/Go/Scala” which compared
+performances of those languages with a particular loop recognition
+algorithm &lt;a href=&quot;#loop-recognition&quot;&gt;(Hundt, 2011)&lt;/a&gt;. Hundt found that the Go implementation
+described in the paper fell behind all other languages considered by a
+significant margin. However, Russ Cox, from the Go team, wrote an
+article that examined the paper, and found that the reason for the slow
+performance was mostly because of the naïveté of the
+implementation &lt;a href=&quot;#profiling&quot;&gt;(Cox, 2013)&lt;/a&gt;. Cox took the paper as an opportunity to
+showcase the Go performance profiler. After some analysis and a few
+minor tweaks to the code published in the paper, the program improved
+from 25.2 seconds and 1302MB of memory to 2.29 seconds and 351MB of
+memory—a speedup of 11x. Cox also noticed some inefficiencies in the C++
+implementation and fixed those as well so that a new comparison would be
+fair. It was found that Go performed slightly slower than C++—as
+expected. Cox concluded that “benchmarks are only as good as the
+programs they measure” and that Go can be competitive with C++ (and by
+extension, all other compiled languages, depending on the application)
+when care is taken to avoid generating excess garbage &lt;a href=&quot;#profiling&quot;&gt;(Cox, 2013)&lt;/a&gt;.&lt;/p&gt;
+
+&lt;p&gt;These are, of course, only two examples of performance measurement, but
+in general, it is expected that Go, in its current state, will follow
+this pattern—being much faster than scripting languages, but slightly
+behind most other compiled languages. This is not surprising, given that
+Go is such a new language. Being a modern compiled language, it will be
+much faster than any interpreted language, but the compiler has not had
+the decades of optimizations that, say, the C compiler has had. In
+addition, as discussed in section &lt;a href=&quot;#compilation&quot;&gt;Compilation time&lt;/a&gt;, because one of the
+primary goals of the language was to compile fast, it does not
+necessarily spend as much time passing the code through optimizers.
+According to a question on the Go FAQ, “one of Go’s design goals is to
+approach the performance of C for comparable programs” while being much
+easier to use &lt;a href=&quot;#faq&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;. The same question concludes that, while there is
+certainly room for improvement in the compiler, standard library
+implementations, and the garbage collector, Go can be competitive for
+many applications.&lt;/p&gt;
+
+&lt;h1&gt;Conclusion&lt;/h1&gt;
+
+&lt;p&gt;Go is an exciting new language which introduces many interesting
+features which make many aspects of programming much easier,
+particularly in implementing parallel programs. Go makes use of a simple
+memory model with goroutines to automatically manage multiple threads of
+execution, which can be much easier than the manual approach that is
+required in C. Through the use of channels, Go makes inter-process
+communication much simpler than traditional mechanisms. Both Go and C
+are equally prone to deadlocks and race conditions, and both come with
+comparable tools and techniques to help debug these issues. Since Go is
+designed to be simpler, it is not possible to reach quite the level of
+control over threads that C can achieve, so if such control is
+necessary, C may be better suited. For very large projects, Go compiles
+faster than C and C++ by an order of magnitude, while actual program
+performance will typically fall slightly behind C/C++. The goal of Go
+was to approach the performance of C and to make software engineering
+much simpler; given the analysis in this paper, it appears the Go team
+has achieved that goal remarkably well.&lt;/p&gt;
+
+&lt;p&gt;There are many other interesting features and idioms in Go which are
+outside the scope of this paper. To learn more, the official web site
+provides excellent and thorough documentation of the language, and the
+Go Blog has many in-depth articles that cover: the inner-workings of Go,
+idiomatic practices, and how to use the included tool suite. Many large
+companies have started adopting Go, including: BBC Worldwide, Bitbucket,
+GitHub, Canonical, Heroku, SoundCloud, and Docker, among
+others &lt;a href=&quot;#currently-using&quot;&gt;(go-wiki, n.d.)&lt;/a&gt;.&lt;/p&gt;
+
+&lt;h1&gt;References&lt;/h1&gt;
+
+&lt;ol class=&quot;bibliography&quot;&gt;&lt;li&gt;&lt;span id=&quot;goatgoogle&quot;&gt;Pike, R. Go at Google: Language Design in the Service of Software Engineering. Golang.org. Retrieved from \urlhttp://talks.golang.org/2012/splash.article&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;faq&quot;&gt;Golang.org. Frequently Asked Questions. Retrieved from \urlhttp://golang.org/doc/faq&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;sharebycommunicating&quot;&gt;Gerrand, A. (2010). Share Memory By Communicating. The Go Blog. Retrieved from \urlhttp://blog.golang.org/share-memory-by-communicating&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;spec&quot;&gt;Golang.org. The Go Programming Language Specification. Golang.org. Retrieved from \urlhttp://golang.org/ref/spec&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;effectivego&quot;&gt;Golang.org. Effective Go. Golang.org. Retrieved from \urlhttp://golang.org/doc/effective_go.html&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;multicoreprogramming&quot;&gt;Akhter, S., &amp;amp; Roberts, J. (2006). &lt;i&gt;Multi-Core Programming: Increasing Performance through Software Multi-threading&lt;/i&gt;. Intel Press.&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;race&quot;&gt;Vyukov, D., &amp;amp; Gerrand, A. Introducing the Go Race Detector. The Go Blog. Retrieved from \urlhttp://blog.golang.org/race-detector&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;valgrind&quot;&gt;Valgrind.org. Helgrind: a thread error detector. Valgrind.org. Retrieved from \urlhttp://valgrind.org/docs/manual/hg-manual.html&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;threadsanitizer&quot;&gt;Code.google.com. ThreadSanitizer Cpp Manual. Google. Retrieved from \urlhttp://code.google.com/p/thread-sanitizer/wiki/CppManual&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;package-sync&quot;&gt;Golang.org. sync. Golang.org. Retrieved from \urlhttp://golang.org/pkg/sync/&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;concurrency-patterns&quot;&gt;Gerrand, A. Go Concurrency Patterns: Timing out, moving on. The Go Blog. Retrieved from \urlhttp://blog.golang.org/go-concurrency-patterns-timing-out-and&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;pthreads&quot;&gt;Barney, B. POSIX Threads Programming. computing.llnl.gov. Retrieved from \urlhttps://computing.llnl.gov/tutorials/pthreads&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;pthreads-attributes&quot;&gt;Marshall, D. (1999). Further Threads Programming: Thread Attributes (POSIX). cs.cf.ac.uk. Retrieved from \urlhttp://www.cs.cf.ac.uk/Dave/C/node30.html&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;package-atomic&quot;&gt;Golang.org. atomic. Golang.org. Retrieved from \urlhttp://golang.org/pkg/atomic/&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;package-runtime&quot;&gt;Golang.org. runtime. Golang.org. Retrieved from \urlhttp://golang.org/pkg/runtime/&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;decl-syntax&quot;&gt;Pike, R. Go’s Delcaration Syntax. The Go Blog. Retrieved from \urlhttp://blog.golang.org/gos-declaration-syntax&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;tech-talk&quot;&gt;Pike, R. (2009). The Go Programming Language. Google. Retrieved from \urlhttp://www.youtube.com/watch?v=rKnDgT73v8s#t=8m53&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;debian-benchmark&quot;&gt;Debian. Debian’s Computer Language Benchmarks Game on a x64 Ubuntu : Intel Q6600 quad-core. Debian. Retrieved from \urlhttp://benchmarksgame.alioth.debian.org/u64q/which-programs-are-fastest.php?gpp=on&amp;java=on&amp;go=on&amp;ghc=on&amp;sbcl=on&amp;csharp=on&amp;hipe=on&amp;python3=on&amp;yarv=on&amp;calc=chart&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;debian-benchmark-conclusion&quot;&gt;Debian. And please don’t jump to conclusions! Debian. Retrieved from \urlhttp://benchmarksgame.alioth.debian.org/dont-jump-to-conclusions.php&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;loop-recognition&quot;&gt;Hundt, R. (2011). Loop Recognition in C++/Java/Go/Scala. In &lt;i&gt;Proceedings of Scala Days 2011&lt;/i&gt;. Retrieved from https://days2011.scala-lang.org/sites/days2011/files/ws3-1-Hundt.pdf&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;profiling&quot;&gt;Cox, R. (2013). Profiling Go Programs. The Go Blog. Retrieved from \urlhttp://blog.golang.org/profiling-go-programs&lt;/span&gt;&lt;/li&gt;
+&lt;li&gt;&lt;span id=&quot;currently-using&quot;&gt;go-wiki. Currently Using Go. go-wiki. Retrieved from \urlhttps://code.google.com/p/go-wiki/wiki/GoUsers&lt;/span&gt;&lt;/li&gt;&lt;/ol&gt;
+
+&lt;div class=&quot;footnotes&quot;&gt;
+&lt;hr&gt;
+&lt;ol&gt;
+
+&lt;li id=&quot;fn1&quot;&gt;
+&lt;p&gt;The official web site distributes an ebook of a description of the
+language: &lt;a href=&quot;http://www.usingcsp.com/&quot;&gt;http://www.usingcsp.com/&lt;/a&gt;&amp;nbsp;&lt;a href=&quot;#fnref1&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li id=&quot;fn2&quot;&gt;
+&lt;p&gt;For a description of the producer–consumer problem, see &lt;a href=&quot;http://en.wikipedia.org/wiki/Producer%E2%80%93consumer_problem&quot;&gt;the
+Wikipedia
+article&lt;/a&gt;.&amp;nbsp;&lt;a href=&quot;#fnref2&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li id=&quot;fn3&quot;&gt;
+&lt;p&gt;An excellent concrete example of this mantra can be seen in an
+interactive Code Walk on the Go web site, which was too lengthy to
+include in this paper. &lt;a href=&quot;http://golang.org/doc/codewalk/sharemem/&quot;&gt;http://golang.org/doc/codewalk/sharemem/&lt;/a&gt;&amp;nbsp;&lt;a href=&quot;#fnref3&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li id=&quot;fn4&quot;&gt;
+&lt;p&gt;This is, of course, a simplified example. One could design a
+parallel summation using a more reasonable approach, such as data
+segmentation. There is no reason to use a single shared variable for
+a simple sum like this.&amp;nbsp;&lt;a href=&quot;#fnref4&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li id=&quot;fn5&quot;&gt;
+&lt;p&gt;If the reader has never seen slices before, or if this is
+otherwise confusing, see &lt;a href=&quot;http://golang.org/ref/spec#Slice_expressions&quot;&gt;“Slice expressions” in the Go Language
+Specification&lt;/a&gt;, or for
+a more detailed discussion, the Go Blog article &lt;a href=&quot;http://blog.golang.org/go-slices-usage-and-internals&quot;&gt;“Go Slices: usage
+and
+internals”&lt;/a&gt;.&amp;nbsp;&lt;a href=&quot;#fnref5&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li id=&quot;fn6&quot;&gt;
+&lt;p&gt;Although this approach may introduce a &lt;em&gt;live lock&lt;/em&gt; if many threads
+continually conflict over the first resource and back off. In this
+case, a statement may be added to the end of the loop which waits a
+random amount of time &lt;a href=&quot;#multicoreprogramming&quot;&gt;(Akhter &amp;amp; Roberts, 2006, p. 180)&lt;/a&gt;.&amp;nbsp;&lt;a href=&quot;#fnref6&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li id=&quot;fn7&quot;&gt;
+&lt;p&gt;Go’s break statement stops the execution of only the innermost
+&lt;code&gt;for&lt;/code&gt;, &lt;code&gt;select&lt;/code&gt;, or &lt;code&gt;switch&lt;/code&gt; statement, so a label must be used to
+specify it is the for loop we want to stop. For more detail, see the
+“Labeled statements” and “Break statements” sections of the Go
+Programming Language Specification &lt;a href=&quot;#spec&quot;&gt;(Golang.org, n.d.)&lt;/a&gt;.&amp;nbsp;&lt;a href=&quot;#fnref7&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li id=&quot;fn8&quot;&gt;
+&lt;p&gt;Plan 9 is an experimental operating system designed by Bell Labs
+as the potential successor to Unix, used primarily for research
+purposes at the Computing Sciences Research Center. See
+&lt;a href=&quot;http://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs&quot;&gt;http://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs&lt;/a&gt;.&amp;nbsp;&lt;a href=&quot;#fnref8&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;li id=&quot;fn9&quot;&gt;
+&lt;p&gt;Pike also notes: “It’s worth mentioning that this general approach
+to dependency management is not original; the ideas go back to the
+1970s and flow through languages like Modula-2 and Ada. In the C
+family Java has elements of this approach” &lt;a href=&quot;#goatgoogle&quot;&gt;(Pike, n.d.)&lt;/a&gt;.&amp;nbsp;&lt;a href=&quot;#fnref9&quot; rev=&quot;footnote&quot;&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+
+&lt;/ol&gt;
+&lt;/div&gt;
+</description>
+        <pubDate>Mon, 15 Dec 2014 00:00:00 -0800</pubDate>
+        <link>http://yourdomain.com/2014/12/15/go-vs-c.html</link>
+        <guid isPermaLink="true">http://yourdomain.com/2014/12/15/go-vs-c.html</guid>
+        
+        
+      </item>
+    
+  </channel>
+</rss>

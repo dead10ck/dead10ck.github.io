@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width initial-scale=1" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <title>Go vs. C: A Language Comparison of Concurrent Programming Features</title>
+    <meta name="description" content="A coding blog about various things I'm interested in.
+">
+
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="canonical" href="http://yourdomain.com/2014/12/15/go-vs-c.html">
+</head>
+
+
+  <body>
+
+    <header class="site-header">
+
+  <div class="wrapper">
+
+    <a class="site-title" href="/">Deadlock</a>
+
+    <nav class="site-nav">
+      <a href="#" class="menu-icon">
+        <svg viewBox="0 0 18 15">
+          <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+          <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+          <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+        </svg>
+      </a>
+
+      <div class="trigger">
+        
+          
+          <a class="page-link" href="/about/">About</a>
+          
+        
+          
+        
+          
+        
+          
+        
+      </div>
+    </nav>
+
+  </div>
+
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+
+  <header class="post-header">
+    <h1 class="post-title">Go vs. C: A Language Comparison of Concurrent Programming Features</h1>
+    <p class="post-meta">Dec 15, 2014</p>
+  </header>
+
+  <article class="post-content">
+    <p>This post is adapted from a term paper I wrote for my course on
+Parallel Processing at San José State University. My comparison with C is
+definitely very limited in scope—a more fair comparison would need
+consideration of many other libraries besides <code>pthreads</code>. However, this
+treatment would have taken much more time than I had in the semester.
+In any case, my hope is that it is an enlightening nonetheless.</p>
+
+<hr>
+
+<p><br/>
+In 2009, Google released the first open-source version of their new
+compiled programming language Go. Go’s new and unusual approach to
+facilitating parallel programming aims to make it much simpler to use
+than most other languages, including C. This post will examine and compare
+different aspects of Go’s and C’s approach to, and ability to
+facilitate, parallel programming, including: ease of use, compile time,
+performance and efficiency, fine-grained control, and proneness to bugs
+such as deadlocks and race conditions.</p>
+
+<h1>Introduction</h1>
+
+<p>Google has created a new compiled programming language called Go. It was
+invented in 2007 by Robert Griesemer, Rob Pike, and Ken Thompson, and
+first released as open source in 2009 <a href="#goatgoogle">(Pike, n.d.; Golang.org, n.d.)</a>. Their main goal
+was to design a language that would make life easier for software
+engineers <a href="#goatgoogle">(Pike, n.d.)</a>. Go aims to be as easy to use as a scripting
+language, but as fast as a compiled language <a href="#faq">(Golang.org, n.d.)</a>. It features automatic
+memory management (garbage collection), type safety, a built-in suite of
+developer tools, and most importantly, its built-in concurrency
+primitives. Go takes a new and unusual approach to concurrency which
+makes it much simpler to use than C. The traditional approach to safe
+multithreading, as in C, is to use synchronization primitives, such as
+semaphores, locks, and condition variables. Go uses a different model,
+inspired by the formal language Communicating Sequential Processes
+(CSP);<sup id="fnref1"><a href="#fn1" rel="footnote">1</a></sup> the mantra of Go’s memory model is: “Do not communicate by
+sharing memory; instead, share memory by
+communicating” <a href="#sharebycommunicating">(Gerrand, 2010)</a>.</p>
+
+<p>This paper will compare different aspects of C and Go’s approach to, and
+ability to facilitate, parallel programming, including: ease of use,
+compile time, performance and efficiency, fine-grained control, and
+proneness to bugs such as deadlocks and race conditions. There are
+several C libraries which facilitate multithreaded programming, and
+since comparing C’s approach with all libraries would be infeasible,
+this paper will only discuss the approach with the POSIX Threads (or
+pthreads) library, since it represents and showcases the most
+traditional and standard approach to managing multithreaded
+applications.</p>
+
+<h1>Overview of Go</h1>
+
+<p>In order to fully understand Go’s approach to concurrency, it is
+necessary to cover some of the fundamentals of the language. Go includes
+a few built-in primitives: slices, maps, and channels. The latter is
+specifically designed to facilitate concurrency through Go’s shared
+memory model via goroutines.</p>
+
+<h2 id="goroutines">Goroutines</h2>
+
+<p>The basic thread of execution in Go is called a goroutine, so named
+because the Go team felt the existing terms (threads, coroutines,
+processes, etc.) convey inaccurate connotations <a href="#effectivego">(Golang.org, n.d.)</a>. Goroutines
+have a simpler model. They are simply functions executing in the same
+address space. According to Golang.org’s document “Effective Go,”</p>
+
+<blockquote>
+<p>[They are] lightweight, costing little more than the allocation of
+stack space. And the stacks start small, so they are cheap, and grow
+by allocating (and freeing) heap storage as required. Goroutines are
+multiplexed onto multiple OS threads so if one should block, such as
+while waiting for I/O, others continue to run. Their design hides many
+of the complexities of thread creation and management <a href="#effectivego">(Golang.org, n.d.)</a>.</p>
+</blockquote>
+
+<p>The traditional approach to thread management can indeed be cumbersome.
+For example, in C with pthreads, to create a handful of threads which
+execute in parallel, the programmer has to do something like this:</p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="n">i</span><span class="p">,</span> <span class="o">*</span><span class="n">ret</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">;</span>
+<span class="kt">pthread_t</span> <span class="n">thd_handle</span><span class="p">[</span><span class="n">NUM_THREADS</span><span class="p">];</span>
+
+<span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">NUM_THREADS</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">pthread_create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">thd_handle</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="nb">NULL</span><span class="p">,</span> <span class="n">SomeFunction</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">args</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">NUM_THREADS</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">pthread_join</span><span class="p">(</span> <span class="n">thd_handle</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="p">(</span><span class="kt">void</span><span class="o">**</span><span class="p">)</span><span class="o">&amp;</span><span class="n">ret</span> <span class="p">);</span>
+    <span class="c1">// do something with ret</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The programmer must explicitly store all threads in a variable, and then
+wait for each individual thread to exit, doing something with its return
+value after each successful termination. Also, because pthreads must
+take untyped (void) parameters, the data may have to be casted to and
+from its actual type multiple times, while making sure pointers are
+dereferenced appropriately–giving us such unwieldy code as
+<code>(void**)&amp;ret</code>.</p>
+
+<p>Go’s approach is much simpler. To launch a goroutine, the programmer
+simply puts the keyword <code>go</code> in front of a function call. For example,
+<code>go list.Sort()</code> will launch a goroutine which sorts <code>list</code>
+concurrently, without waiting for it to finish. In this trivial example,
+though, we don’t see how to handle return values or shared data
+synchronization. In order for goroutines to communicate, Go makes use of
+primitives called <em>channels</em>.</p>
+
+<h2>Channels</h2>
+
+<p>Go’s approach to concurrency is designed to avoid explicit
+synchronization by the programmer, which can be difficult to manage.
+Traditionally, synchronization of data occurs through the use of
+primitives such as semaphores, locks, and condition variables.
+Typically, the programmer must protect shared data and critical code
+blocks from hazards by using something like a mutex variable with a
+condition variable.</p>
+
+<p>For example, with the pthreads library in C, to synchronize a
+multithreaded program that fits the producer–consumer model,<sup id="fnref2"><a href="#fn2" rel="footnote">2</a></sup> one
+first has to set up a synchronized data structure which encapsulates
+both the payload and its synchronization locks:</p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">typedef</span> <span class="k">struct</span> <span class="p">{</span>
+    <span class="kt">pthread_mutex_t</span>     <span class="n">mutex</span><span class="p">;</span>
+    <span class="kt">pthread_cond_t</span>  <span class="n">cv</span><span class="p">;</span>
+    <span class="kt">int</span>         <span class="n">data</span><span class="p">;</span>
+<span class="p">}</span> <span class="n">flag</span><span class="p">;</span>
+
+<span class="n">flag</span> <span class="n">ourFlag</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">PTHREAD_MUTEX_INITIALIZER</span><span class="p">,</span>
+    <span class="n">PTHREAD_COND_INITIALIZER</span><span class="p">,</span>
+    <span class="mi">0</span>
+<span class="p">};</span>
+</code></pre></div>
+<p>Then, any time the programmer wishes to perform operations on the data,
+and then have an independent thread wait for changes to that data before
+proceeding, it is necessary to explicitly lock the variable, perform the
+operations, and signal the condition to allow the waiting threads to
+execute.</p>
+<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+        <span class="p">...</span>
+        <span class="c1">// create worker threads</span>
+        <span class="p">...</span>
+        <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+        <span class="n">ourFlag</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">someValue</span><span class="p">;</span>
+        <span class="n">pthread_cond_broadcast</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">cv</span><span class="p">);</span>
+        <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+        <span class="p">...</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p>Similarly, within the worker thread, one must wait on the mutex lock,
+then wait on the condition variable before doing something with the
+changed data.</p>
+<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="kt">void</span><span class="o">*</span> <span class="nf">workerThread</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">args</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">...</span>
+        <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+        <span class="n">pthread_cond_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">cv</span><span class="p">,</span>
+            <span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+        <span class="c1">// do something with ourFlag.data</span>
+        <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+        <span class="p">...</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p>In order to avoid data hazards and/or race conditions, access to the
+data must be explicitly managed by the programmer by bundling the
+synchronization primitives with the payload, and then acquiring and
+releasing locks and signaling to the other threads when they may
+continue. The use of <em>semaphores</em> can make this a bit simpler, but they
+are limited when dealing with multiple consumer threads, so condition
+variables are the best general solution <a href="#multicoreprogramming">(Akhter &amp; Roberts, 2006, p. 132)</a>.
+The explicit management required by this approach is exactly the kind of
+manual tracking that Go was designed to avoid.</p>
+
+<p>Go takes a different approach to the problem of thread communication and
+synchronization through the use of built-in primitives called channels.
+A <em>channel</em> is defined by the Go Language Specification as a primitive
+which “provides a mechanism for two concurrently executing functions to
+synchronize execution and communicate by passing a value of a specified
+element type” <a href="#spec">(Golang.org, n.d.)</a>. They work in a manner analogous to Unix pipes—data
+values are written to them (<em>sent</em>) and read from them (<em>received</em>) in a
+first-in, first-out (FIFO) manner. In fact, the document “Effective Go”
+says that they “can... be seen as a type-safe generalization of Unix
+pipes” <a href="#sharebycommunicating">(Gerrand, 2010)</a>. The typical flow of a multithreaded program
+in Go involves setting up communication channels, and then passing these
+channels to all goroutines which need to communicate. Worker goroutines
+send processed data to the channel, and goroutines which need to wait on
+work done by others will do so by receiving from this channel.</p>
+<div class="highlight"><pre><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nx">WorkerGoroutine</span><span class="p">(</span><span class="nx">data</span> <span class="p">[]</span><span class="kt">int</span><span class="p">,</span> <span class="nx">c</span> <span class="kd">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="nx">d</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">data</span> <span class="p">{</span>
+        <span class="nx">result</span> <span class="o">:=</span> <span class="nx">SomeOperation</span><span class="p">(</span><span class="nx">d</span><span class="p">)</span>
+        <span class="nx">c</span> <span class="o">&lt;-</span> <span class="nx">result</span>
+    <span class="p">}</span>
+    <span class="nb">close</span><span class="p">(</span><span class="nx">c</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nx">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">data</span> <span class="p">[]</span><span class="kt">int</span> <span class="p">=</span> <span class="c1">// some data</span>
+    <span class="kd">var</span> <span class="nx">c</span> <span class="kd">chan</span> <span class="kt">int</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">BUF_SIZE</span><span class="p">)</span>
+
+    <span class="k">go</span> <span class="nx">WorkerGoroutine</span><span class="p">(</span><span class="nx">data</span><span class="p">,</span> <span class="nx">c</span><span class="p">)</span>
+
+    <span class="c1">// blocks until there is data to receive from c and stops when c</span>
+    <span class="c1">// has been closed</span>
+    <span class="k">for</span> <span class="nx">result</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">c</span> <span class="p">{</span>
+        <span class="c1">// do something with result</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>As the reader can see, there is no need to set up any explicit data
+synchronization. Channels are inherently hazard safe, and blocking and
+signaling are done automatically.</p>
+
+<p>The above example used <em>buffered</em> channels. Channels can either be
+buffered or not, depending on their use case. An unbuffered channel c
+would be declared like so (without a second parameter):
+<code>c := make(chan int)</code> Sending on an unbuffered channel will block until
+the receiver receives the value, whereas sending on a buffered channel
+will only block if the buffer is full, and receives will block only if
+the buffer is empty. One use of this is to limit throughput. The
+document “Effective Go” includes an example in which one can use
+channels like semaphores to limit the number of simultaneous goroutines
+that handle requests <a href="#effectivego">(Golang.org, n.d.)</a>.</p>
+<div class="highlight"><pre><code class="language-go" data-lang="go"><span class="kd">var</span> <span class="nx">sem</span> <span class="p">=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">MaxOutstanding</span><span class="p">)</span>
+
+<span class="kd">func</span> <span class="nx">init</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="nx">MaxOutstanding</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+        <span class="c1">// initialize semaphore with one value</span>
+        <span class="nx">sem</span> <span class="o">&lt;-</span> <span class="mi">1</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">func</span> <span class="nx">Serve</span><span class="p">(</span><span class="nx">queue</span> <span class="kd">chan</span> <span class="o">*</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// handle the requests as they come</span>
+    <span class="k">for</span> <span class="nx">req</span> <span class="o">:=</span> <span class="k">range</span> <span class="nx">queue</span> <span class="p">{</span>
+        <span class="c1">// Wait for active queue to drain.</span>
+        <span class="o">&lt;-</span><span class="nx">sem</span>
+        <span class="k">go</span> <span class="kd">func</span><span class="p">(</span><span class="nx">req</span> <span class="o">*</span><span class="nx">Request</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">process</span><span class="p">(</span><span class="nx">req</span><span class="p">)</span>
+
+            <span class="c1">// Done; enable next request to run.</span>
+            <span class="nx">sem</span> <span class="o">&lt;-</span> <span class="mi">1</span>
+        <span class="p">}(</span><span class="nx">req</span><span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The Go team does, however, acknowledge that the approach with channels
+is not a universal solution. The Go team says that “This approach can be
+taken too far. Reference counts may be best done by putting a mutex
+around an integer variable, for instance” <a href="#sharebycommunicating">(Gerrand, 2010)</a>. Channels
+are ultimately a high level solution, and sometimes lower-level
+solutions are needed. For this purpose, the Go standard library does
+include packages with lower-level synchronization primitives, such as
+the <code>sync</code> package, which includes mutex types and condition
+types <a href="#package-sync">(Golang.org, n.d.)</a>. See section <a href="#fine">Fine-grained control</a> for more detail.</p>
+
+<h2>Memory model</h2>
+
+<p>From the previous examples, one can understand the difference in
+approach. With the traditional approach to synchronization in C, the
+memory model can be very cumbersome. Much of the hazard safety is left
+as the responsibility of the programmer, who must explicitly restrict
+access to shared data by communicating to other threads, via
+synchronization primitives, when the data is being used and when the
+data is free. Go makes this easier for the programmer with a simpler
+shared memory model. Data is never actively shared between separate
+threads of communication—it is just passed around in channels. Thus,
+data races cannot happen, by design, when the data are passed between
+channels. The document “Effective Go” explains that</p>
+
+<blockquote>
+<p>One way to think about this model is to consider a typical
+single-threaded program running on one CPU. It has no need for
+synchronization primitives. Now run another such instance; it too
+needs no synchronization. Now let those two communicate; if the
+communication is the synchronizer, there’s still no need for other
+synchronization <a href="#sharebycommunicating">(Gerrand, 2010)</a>.</p>
+</blockquote>
+
+<p>This is why the Go team has reduced the model to a slogan: “<em>Do not
+communicate by sharing memory; instead, share memory by
+communicating.</em>”<sup id="fnref3"><a href="#fn3" rel="footnote">3</a></sup></p>
+
+<h1>Proneness to deadlocks and race conditions</h1>
+
+<p>Although Go takes a very different approach to concurrency than C, it is
+ultimately a lower level language, and thus it can be easy to write code
+which does not behave as expected. While Go’s concurrency primitives can
+make it easier to avoid data hazards, they are not a panacea—the
+programmer does still have to be mindful of race conditions.</p>
+
+<h2>A simple example</h2>
+
+<p>In C, without explicitly locking critical code, data races are very
+likely to happen. As a simple example, consider a multithreaded program
+which increments a shared integer variable a set number of times.<sup id="fnref4"><a href="#fn4" rel="footnote">4</a></sup></p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="kt">void</span><span class="o">*</span> <span class="nf">sum</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">ret</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">1000000</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="kt">int</span><span class="o">*</span><span class="p">)</span><span class="n">ret</span><span class="p">))</span><span class="o">++</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>If, say, 4 threads were running the sum function concurrently, then by
+the time all threads have finished, the value in the <code>ret</code> variable
+would not be 4 million. It would, in fact, be a different number every
+time the program was run. One could easily construct a Go program with
+analogous behavior.</p>
+<div class="highlight"><pre><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nx">sum</span><span class="p">(</span><span class="nx">ret</span> <span class="o">*</span><span class="kt">int</span><span class="p">,</span> <span class="nx">done</span> <span class="kd">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">1000000</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+        <span class="o">*</span><span class="nx">ret</span><span class="o">++</span>
+    <span class="p">}</span>
+    <span class="nx">done</span> <span class="o">&lt;-</span> <span class="mi">1</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>So the question that remains is: how easy is it to avoid race conditions
+like this?</p>
+
+<h2>Avoiding race conditions</h2>
+
+<p>As we have seen, in C, to avoid race conditions, one could use a mutex
+variable to protect any shared data. To fix the example C code above,
+one could lock just before incrementing the shared variable, and then
+unlock just after.</p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="kt">void</span><span class="o">*</span> <span class="nf">sum</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">ret</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">1000000</span><span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex</span><span class="p">);</span>
+        <span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="kt">int</span><span class="o">*</span><span class="p">)</span><span class="n">ret</span><span class="p">))</span><span class="o">++</span><span class="p">;</span>
+        <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Similarly, for analogous Go code, one could use a buffered channel of
+size 1 to restrict access to the sum variable to one goroutine at a
+time.</p>
+<div class="highlight"><pre><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nx">sum</span><span class="p">(</span><span class="nx">sumChan</span> <span class="kd">chan</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">done</span> <span class="kd">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">1000000</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
+        <span class="c1">// sumChan has a buffer of size 1, so receiving blocks if there</span>
+        <span class="c1">// is another goroutine currently incrementing the sum</span>
+        <span class="nx">cur</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">sumChan</span>
+        <span class="nx">cur</span><span class="o">++</span>
+        <span class="nx">sumChan</span> <span class="o">&lt;-</span> <span class="nx">cur</span>
+    <span class="p">}</span>
+    <span class="nx">done</span> <span class="o">&lt;-</span> <span class="mi">1</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>In this simple case, the solutions are not terribly different. However,
+as we can gather from the previous Go code examples, channels can be
+very flexible in their usage. Where C needs distinct synchronization
+primitives, such as mutex variables, condition variables, and
+semaphores, to handle all of the different use cases, Go’s channels can
+be used: as a hazard-safe conduit to share actual data; to signal when a
+goroutine is finished; and as a way to limit the throughput of the
+program. In other words, good solutions exist in both languages, but
+Go’s channels provide a much more effortless way to design programs
+which are safe from race conditions.</p>
+
+<h3>Detecting race conditions</h3>
+
+<p>No matter how skilled a programmer is, race conditions will inevitably
+arise. Therefore, tools to help the programmer detect race conditions
+are necessary. Various tools exist which analyze a C program’s runtime
+to aid the detection of race conditions. A common tool is Valgrind,
+which includes the race detector Helgrind <a href="#valgrind">(Valgrind.org, n.d.)</a>. The Go tool chain
+comes packaged with a race detector, which is built on the
+ThreadSanitizer race detector for C/C++ <a href="#race">(Vyukov &amp; Gerrand, n.d.)</a>. To run the race detector
+on a Go program, one can simply use the <code>-race</code> option when compiling
+(e.g. <code>go run -race mysrc.go</code>). Similarly, <code>gcc</code> comes bundled with
+ThreadSanitizer, so to run the race detector on a C program, one would
+simply compile with the <code>-fsanitize=thread</code> and <code>-fPIE</code> options and then
+link to <code>-fsanitize=thread -pie</code> <a href="#threadsanitizer">(Code.google.com, n.d.)</a>. Therefore, the options
+for helping detect race conditions are similar for both C and Go.</p>
+
+<h2>Deadlocks</h2>
+
+<p>Deadlocks are one of the trickiest bugs to remediate. Often, they are
+transient and very difficult to trace (especially in a large project).
+Deadlocks take care to avoid in both C and Go. Mechanisms and
+methodologies exist in both languages to aid in avoiding deadlocks.</p>
+
+<h3>Data segmentation/replication</h3>
+
+<p>If it is possible, replicating the shared resource for each thread will
+eliminate deadlocks, because no locking mechanism is needed for
+synchronization <a href="#multicoreprogramming">(Akhter &amp; Roberts, 2006, p. 178)</a>. For example, in C, if the
+shared resource is an array, then replication can be done with the
+<code>memcpy</code> function. Although, if the data set is not small, replicating
+can consume too much memory. Therefore, if the concurrent operations are
+independent from each other, it is better to segment the shared data,
+rather than replicate it.</p>
+
+<p>In Go, segmentation can be done easily with its built-in <code>slice</code> type.
+Go’s <code>slice</code> type is similar to Python’s <code>slice</code> type. Slices are
+references to an underlying array, and they provide operators which make
+it easy to segment that array. For example, one can “reslice” a slice
+with the bracket operator. If <code>arr</code> is a slice variable, then
+<code>arr[:len(arr)/2]</code> will return a slice which can access the first half
+of <code>arr</code>’s elements.<sup id="fnref5"><a href="#fn5" rel="footnote">5</a></sup> Thus, if <code>sum</code> is a function which returns the
+sum of every element of an integer slice, then</p>
+<div class="highlight"><pre><code class="language-go" data-lang="go"><span class="nx">arr</span> <span class="o">:=</span> <span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="mi">7</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="o">-</span><span class="mi">9</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">0</span><span class="p">}</span>
+<span class="nx">partSums</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">int</span><span class="p">)</span>
+<span class="k">go</span> <span class="nx">sum</span><span class="p">(</span><span class="nx">a</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">],</span> <span class="nx">partSums</span><span class="p">)</span>
+<span class="k">go</span> <span class="nx">sum</span><span class="p">(</span><span class="nx">a</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="nx">a</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">:],</span> <span class="nx">partSums</span><span class="p">)</span>
+<span class="nx">x</span><span class="p">,</span> <span class="nx">y</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">partSums</span><span class="p">,</span> <span class="o">&lt;-</span><span class="nx">partSums</span>
+<span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="nx">x</span><span class="o">+</span><span class="nx">y</span><span class="p">)</span>
+</code></pre></div>
+<p>will launch two goroutines which sum the first and second half of <code>arr</code>,
+respectively, and receive both partial sums from the <code>partSums</code> channel.
+Then, these two partial sums are added together to yield the correct sum
+of all the elements in arr—in this case, 12. Segmenting the data like
+this avoids the need for any communication between the two goroutines,
+as well as the need to replicate any data (since slices are simply
+references). A similar functionality could be achieved in C, although
+the segmentation would have to be done manually; the <code>sum</code> function, for
+instance, might need to take parameters for the beginning and ending
+indices of which elements in the shared array to sum. In both languages,
+if data segmentation is possible, this is a good way to avoid deadlocks.
+It obviates the need to use any kind of synchronization locks.</p>
+
+<h3>Try and back off</h3>
+
+<p>However, when locks are unavoidable, there exist methodologies in both C
+and Go to help avoid deadlocking. When using mutex variables to guard
+critical code sections, one approach is to instruct a thread to release
+any resources it currently holds if locking another resource results in
+failure <a href="#multicoreprogramming">(Akhter &amp; Roberts, 2006, p. 180)</a>. In C, this can be done with the
+<code>pthread</code> function <code>pthread_mutex_trylock</code>.<sup id="fnref6"><a href="#fn6" rel="footnote">6</a></sup></p>
+<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="k">while</span> <span class="p">(</span><span class="nb">true</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex1</span><span class="p">);</span>
+        <span class="k">if</span><span class="p">(</span><span class="n">pthread_mutex_trylock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex2</span><span class="p">);</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p>In Go, however, if mutex variables absolutely must be used, this
+approach may not work, as mutex behavior is more strict than in C’s
+<code>pthread</code> library. In Go, there is no analogous “trylock” function on
+its mutex type; furthermore, it is a runtime error if the <code>Unlock</code>
+function is called on a mutex which is already unlocked,<a href="#package-sync">(Golang.org, n.d.)</a> so
+greater care must be given to restrict the ordering of lock and unlock
+operations.</p>
+
+<h3>Go’s <code>select</code> statement</h3>
+
+<p>However, in a typical Go program where channels suffice for
+synchronization, a different approach may be used to avoid deadlocking
+on channel blocks. In Go, the <code>select</code> statement is analogous to a
+<code>switch</code> statement for channels. Essentially, the cases will try to
+execute a given operation on a channel, and if that operation <em>would</em>
+block, then it tries a different case.</p>
+<div class="highlight"><pre><code class="language-go" data-lang="go">    <span class="k">select</span> <span class="p">{</span>
+    <span class="k">case</span> <span class="nx">a</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch1</span><span class="p">:</span>
+        <span class="c1">// use a</span>
+    <span class="k">case</span> <span class="nx">b</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch2</span><span class="p">:</span>
+        <span class="c1">// use b</span>
+    <span class="k">default</span><span class="p">:</span>
+        <span class="c1">// receiving from both a and b would block</span>
+    <span class="p">}</span>
+</code></pre></div>
+<p>Here, if the program can receive from the channel <code>ch1</code>, then it assigns
+the received value to the variable <code>a</code>, and <code>a</code> can be used within the
+code below the case statement. Similarly, if the program can receive
+from <code>ch2</code>, it assigns the received value to the variable <code>b</code>, which can
+be used in the code following the case statement. If both <code>ch1</code> and
+<code>ch2</code> are ready, the program picks one case at random. If neither are
+ready, the code in the default case is run. Therefore, a tactic
+analogous to the “try and back off” method can be used.<sup id="fnref7"><a href="#fn7" rel="footnote">7</a></sup></p>
+<div class="highlight"><pre><code class="language-go" data-lang="go">    <span class="nx">OuterLoop</span><span class="p">:</span>
+    <span class="k">for</span> <span class="p">{</span>
+        <span class="nx">a</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch1</span>
+        <span class="k">select</span> <span class="p">{</span>
+        <span class="k">case</span> <span class="nx">b</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch2</span><span class="p">:</span>
+            <span class="k">break</span> <span class="nx">OuterLoop</span>
+        <span class="k">default</span><span class="p">:</span>
+            <span class="nx">ch1</span> <span class="o">&lt;-</span> <span class="nx">a</span>
+            <span class="c1">// wait</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="c1">// use a and b</span>
+</code></pre></div>
+<p>Given how flexible channels are in general, there are, of course, many
+more ways one can use the select statement to avoid deadlocks. For
+example, in his article “Go Concurrency Patterns: Timing out, moving
+on,” Andrew Gerrand describes how one could implement a simple timeout
+operation with channels <a href="#concurrency-patterns">(Gerrand, n.d.)</a>.</p>
+<div class="highlight"><pre><code class="language-go" data-lang="go"><span class="nx">timeout</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">bool</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="k">go</span> <span class="kd">func</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nx">time</span><span class="p">.</span><span class="nx">Sleep</span><span class="p">(</span><span class="mi">1</span> <span class="o">*</span> <span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span>
+    <span class="nx">timeout</span> <span class="o">&lt;-</span> <span class="kc">true</span>
+<span class="p">}()</span>
+
+<span class="k">select</span> <span class="p">{</span>
+<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">ch</span><span class="p">:</span>
+    <span class="c1">// a read from ch has occurred</span>
+<span class="k">case</span> <span class="o">&lt;-</span><span class="nx">timeout</span><span class="p">:</span>
+    <span class="c1">// the read from ch has timed out</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>In the above code, a “timeout” channel is created, and an anonymous
+function is launched in a goroutine which sends a value to the timeout
+channel after one second. In the select statement that follows, the main
+goroutine is blocked until one of the select cases can happen. If it
+takes too long to receive from ch (i.e., if the operation takes too
+long), then the select statement receives from the timeout channel and
+the program continues.</p>
+
+<h1 id="fine">Fine-grained control</h1>
+
+<p>As we have seen, Go is intended to be somewhere in between the level of
+a scripting language and that of a lower-level language, like C. It is
+not surprising, then, to learn that C provides a finer level of control
+over the behavior of the program’s threads than Go does. However, Go
+does include some reflective functions which provide some finer-grained
+control over the execution of the program, if so needed. Ultimately,
+though, the memory models of Go and C are anything but isomorphic, so
+the comparison between each language’s runtime may not be apt.</p>
+
+<h2>Thread attributes in C</h2>
+
+<p>In C with <code>pthreads</code>, there are a few standard thread attributes which
+can be set when threads are created. These attributes include: its
+detached or joinable state; scheduling inheritance, policies,
+parameters, and contention scopes, and stack size <a href="#pthreads">(Barney, n.d.)</a>. As an
+example, if the programmer knows that a thread will never need to join
+with another, they can set the thread’s attributes such that it will
+always be detached, and thus, not joinable with any thread, for the
+duration of its execution.</p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="kt">pthread_t</span> <span class="kr">thread</span><span class="p">;</span>
+<span class="kt">pthread_attr_t</span> <span class="n">attr</span><span class="p">;</span>
+
+<span class="n">pthread_attr_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">attr</span><span class="p">);</span>
+<span class="n">pthread_attr_setdetachstate</span><span class="p">(</span><span class="o">&amp;</span><span class="n">attr</span><span class="p">,</span> <span class="n">PTHREAD_CREATE_DETACHED</span><span class="p">);</span>
+
+<span class="n">pthread_create</span><span class="p">(</span><span class="o">&amp;</span><span class="kr">thread</span><span class="p">,</span><span class="o">&amp;</span><span class="n">attr</span><span class="p">,</span><span class="n">SomeFunction</span><span class="p">,</span><span class="n">args</span><span class="p">);</span>
+</code></pre></div>
+<p>Similarly, one can set the scheduling policy of a thread with
+attributes. There are three scheduling types in pthreads: <code>SCHED_FIFO</code>
+(first-in, first-out), <code>SCHED_RR</code> (round robin), or
+<code>SCHED_OTHER</code>,<a href="#pthreads">(Barney, n.d.)</a>-attributes which can be set in a similar manner.</p>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="n">pthread_attr_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">attr</span><span class="p">);</span>
+<span class="n">pthread_attr_setschedpolicy</span><span class="p">(</span><span class="o">&amp;</span><span class="n">attr</span><span class="p">,</span> <span class="n">SCHED_FIFO</span><span class="p">);</span>
+</code></pre></div>
+<p>This example would set the execution policy of any threads created with
+the <code>attr</code> variable to run in a FIFO order. Similar mechanisms exist for
+all the other attributes. Some local implementations of pthreads include
+a <code>pthread_setaffinity_np</code> function, which allows the programmer to
+specify which processor/core they would like the thread to run
+on <a href="#pthreads">(Barney, n.d.)</a>.</p>
+
+<h2>Fine-grained control in Go</h2>
+
+<p>As this author has previously discussed, the memory model in Go is much
+different. Go does not run traditional threads—it runs goroutines. This
+memory model is designed to be much more lightweight and easier to use
+than the traditional approach; thus, many of the fine-grained details
+are abstracted away from the programmer. However, because these details
+are not always avoidable, Go does provide some packages which allow
+access to lower-level synchronization primitives and runtime scheduling.</p>
+
+<p>For example, the <code>sync</code> package provides more traditional
+synchronization primitives, such as mutex and condition variables, as
+well as the <code>WaitGroup</code> type, which allows the programmer to explicitly
+wait on a set of goroutines to finish. The subpackage <code>sync/atomic</code>
+provides even lower-level functions which assist in implementation of
+synchronization algorithms by providing various operations which are
+guaranteed to be atomic <a href="#package-atomic">(Golang.org, n.d.)</a>. The <code>runtime</code> package provides
+functions which interact with Go’s runtime directly. Some example
+functions include: <code>runtime.Gosched()</code>, which yields the current
+goroutine, allowing others to run; <code>runtime.LockOSThread()</code>, which locks
+a goroutine to whichever OS thread it happens to be running on; and
+various reflective functions which report runtime information, such as
+<code>runtime.Stack()</code>, which prints stack trace information <a href="#package-runtime">(Golang.org, n.d.)</a>.</p>
+
+<p>Go does not provide mechanisms to control thread attributes as seen in
+section <a href="#fine">Fine-grained control</a>, however, because goroutines operate on a higher level
+than threads. As discussed in section <a href="#goroutines">Goroutines</a>, goroutines are
+managed dynamically and multiplexed onto multiple OS threads, so
+providing lower-level control mechanisms than those shown above is not
+really feasible. Most of the time, this works out in the programmer’s
+favor, as they do not have to manage as much manually, but these control
+mechanisms can be missed if the application calls for them.</p>
+
+<h1>Performance</h1>
+
+<p>For the most part, the comparisons here are not directly related to each
+language’s ability to facilitate parallel programs, but performance is
+nonetheless an important factor when deciding which language to
+implement an application with.</p>
+
+<h2 id="compilation">Compilation time</h2>
+
+<p>One of the major reasons why Google decided to write a new compiled
+language was because the compile times of their large C++ code bases
+grew to be a significant engineering problem <a href="#goatgoogle">(Pike, n.d.)</a>. Rob Pike
+discusses this problem in the document “Go at Google” <a href="#goatgoogle">(Pike, n.d.)</a>. C and
+C++ use preprocessor directives to manage dependencies, which does not
+scale well for very large projects. Typically, a C/C++ header file will
+use <code>#ifndef</code> guards to protect against errors when multiple source
+files <code>#include</code> the same library. If a dependency is included multiple
+times, after the first compilation, the contents are disregarded, but
+the compiler still opens and scans the whole file. As an example, Pike
+noted that for one large project at Google in 2007, a code base of 4.2
+MB expanded to over 8 GB when delivered to the compiler because of all
+the repeated dependencies <a href="#goatgoogle">(Pike, n.d.)</a>. For this reason, it was
+impractical to build large projects on a single machine, so Google had
+to design a large distributed compilation system. With an early version
+of this distributed system, the binary took 45 minutes to compile. At
+the time of this writing, Pike’s document says the same 2007 binary
+takes 27 minutes to compile today.</p>
+
+<p>Pike says that “the origin myth for Go states that it was during one of
+those 45 minute builds that Go was conceived” <a href="#goatgoogle">(Pike, n.d.)</a>. The Go
+compiler was based on an approach that the Plan 9 team designed to
+remedy the repeated dependency problems described above.<sup id="fnref8"><a href="#fn8" rel="footnote">8</a></sup>
+Essentially, how it works is it builds a dependency graph from the
+source files themselves by reading all of the import statements from
+every file, and then compiling the lowest-level dependencies first by
+compiling every source file in topologically sorted order. Note that
+this implies that there are no cycles in the dependency graph—it was
+decided to make circular dependencies illegal <a href="#goatgoogle">(Pike, n.d.)</a>. When the
+compiler progresses in its traversal of the sorted dependency graph, if
+the file being built includes a file which has already been compiled, it
+only reads that dependency’s object file, not its source code. Pike
+notes that this design “has the important effect that when the compiler
+executes an import clause, it opens exactly one file, the object file
+identified by the string in the import clause…in effect, the compiler
+writes the header file when the Go source file is
+compiled” <a href="#goatgoogle">(Pike, n.d.)</a>.<sup id="fnref9"><a href="#fn9" rel="footnote">9</a></sup></p>
+
+<p>In addition to this, the language itself was designed with efficient
+compile time in mind. Its compact grammar and regular syntax makes it
+much easier to parse <a href="#decl-syntax">(Pike, n.d.)</a>. For instance, requiring opening braces
+to be kept on the same line as its function declaration allowed
+semicolon insertion to happen without the need for lookahead <a href="#faq">(Golang.org, n.d.)</a>. Go
+does not have inheritance; instead, it relies on a simple interface
+system, which greatly simplifies the underlying type system, and the
+structure of Go programs <a href="#faq">(Golang.org, n.d.)</a>.</p>
+
+<p>When testing the results of this design on a large binary, Google
+recorded a speedup of about 40x <a href="#goatgoogle">(Pike, n.d.)</a>. During one of Google’s Tech
+Talks in 2009, Rob Pike gave a demonstration of how fast the Go compiler
+was. On Pike’s single-core laptop, building the entire Go source tree,
+which he estimated at about 120,000–130,000 lines and included “regular
+expressions, flags, concurrency primitives, the runtime, [and] the
+garbage collector…” took about 8 seconds <a href="#tech-talk">(Pike, 2009)</a>. Today, the standard
+library comes in at over 400,000 lines of code, and on this author’s
+laptop with a 4-core Intel i3-3110M CPU, compile time averages around 8
+seconds on a cold cache. It is clear that for large projects, the
+compile time of Go wins over C/C++.</p>
+
+<h2>Raw performance</h2>
+
+<p>Unsurprisingly, typical performance of a Go program is much faster than
+most scripting languages and slightly slower than most other lower-level
+languages, like C. In Debian’s Computer Language Benchmarks Game, in
+their “Ten Tiny Examples,” Go rates at 8^th^ on a scale comparing
+(program time / fastest program time), coming in at the same order of
+magnitude of relative performance of Java, Scala, Haskell, and
+OCaml <a href="#debian-benchmark">(Debian, n.d.)</a>. These were slightly slower than C++, Ada, C, and
+Fortran, but much faster than PHP, Perl, Python, Ruby, and Hack. It is
+worth mentioning, however, that Debian does disclaim that language
+comparison benchmarks are not representative of real-world performance;
+they warn not to jump to conclusions based on these tests because
+“programming languages are compared against each other as though their
+designers intended them to be used for the exact same purpose – that
+just isn’t so” <a href="#debian-benchmark-conclusion">(Debian, n.d.)</a>.</p>
+
+<p>In 2011, Robert Hundt, one of Google’s own software engineers, published
+a paper entitled “Loop Recognition in C++/Java/Go/Scala” which compared
+performances of those languages with a particular loop recognition
+algorithm <a href="#loop-recognition">(Hundt, 2011)</a>. Hundt found that the Go implementation
+described in the paper fell behind all other languages considered by a
+significant margin. However, Russ Cox, from the Go team, wrote an
+article that examined the paper, and found that the reason for the slow
+performance was mostly because of the naïveté of the
+implementation <a href="#profiling">(Cox, 2013)</a>. Cox took the paper as an opportunity to
+showcase the Go performance profiler. After some analysis and a few
+minor tweaks to the code published in the paper, the program improved
+from 25.2 seconds and 1302MB of memory to 2.29 seconds and 351MB of
+memory—a speedup of 11x. Cox also noticed some inefficiencies in the C++
+implementation and fixed those as well so that a new comparison would be
+fair. It was found that Go performed slightly slower than C++—as
+expected. Cox concluded that “benchmarks are only as good as the
+programs they measure” and that Go can be competitive with C++ (and by
+extension, all other compiled languages, depending on the application)
+when care is taken to avoid generating excess garbage <a href="#profiling">(Cox, 2013)</a>.</p>
+
+<p>These are, of course, only two examples of performance measurement, but
+in general, it is expected that Go, in its current state, will follow
+this pattern—being much faster than scripting languages, but slightly
+behind most other compiled languages. This is not surprising, given that
+Go is such a new language. Being a modern compiled language, it will be
+much faster than any interpreted language, but the compiler has not had
+the decades of optimizations that, say, the C compiler has had. In
+addition, as discussed in section <a href="#compilation">Compilation time</a>, because one of the
+primary goals of the language was to compile fast, it does not
+necessarily spend as much time passing the code through optimizers.
+According to a question on the Go FAQ, “one of Go’s design goals is to
+approach the performance of C for comparable programs” while being much
+easier to use <a href="#faq">(Golang.org, n.d.)</a>. The same question concludes that, while there is
+certainly room for improvement in the compiler, standard library
+implementations, and the garbage collector, Go can be competitive for
+many applications.</p>
+
+<h1>Conclusion</h1>
+
+<p>Go is an exciting new language which introduces many interesting
+features which make many aspects of programming much easier,
+particularly in implementing parallel programs. Go makes use of a simple
+memory model with goroutines to automatically manage multiple threads of
+execution, which can be much easier than the manual approach that is
+required in C. Through the use of channels, Go makes inter-process
+communication much simpler than traditional mechanisms. Both Go and C
+are equally prone to deadlocks and race conditions, and both come with
+comparable tools and techniques to help debug these issues. Since Go is
+designed to be simpler, it is not possible to reach quite the level of
+control over threads that C can achieve, so if such control is
+necessary, C may be better suited. For very large projects, Go compiles
+faster than C and C++ by an order of magnitude, while actual program
+performance will typically fall slightly behind C/C++. The goal of Go
+was to approach the performance of C and to make software engineering
+much simpler; given the analysis in this paper, it appears the Go team
+has achieved that goal remarkably well.</p>
+
+<p>There are many other interesting features and idioms in Go which are
+outside the scope of this paper. To learn more, the official web site
+provides excellent and thorough documentation of the language, and the
+Go Blog has many in-depth articles that cover: the inner-workings of Go,
+idiomatic practices, and how to use the included tool suite. Many large
+companies have started adopting Go, including: BBC Worldwide, Bitbucket,
+GitHub, Canonical, Heroku, SoundCloud, and Docker, among
+others <a href="#currently-using">(go-wiki, n.d.)</a>.</p>
+
+<h1>References</h1>
+
+<ol class="bibliography"><li><span id="goatgoogle">Pike, R. Go at Google: Language Design in the Service of Software Engineering. Golang.org. Retrieved from \urlhttp://talks.golang.org/2012/splash.article</span></li>
+<li><span id="faq">Golang.org. Frequently Asked Questions. Retrieved from \urlhttp://golang.org/doc/faq</span></li>
+<li><span id="sharebycommunicating">Gerrand, A. (2010). Share Memory By Communicating. The Go Blog. Retrieved from \urlhttp://blog.golang.org/share-memory-by-communicating</span></li>
+<li><span id="spec">Golang.org. The Go Programming Language Specification. Golang.org. Retrieved from \urlhttp://golang.org/ref/spec</span></li>
+<li><span id="effectivego">Golang.org. Effective Go. Golang.org. Retrieved from \urlhttp://golang.org/doc/effective_go.html</span></li>
+<li><span id="multicoreprogramming">Akhter, S., &amp; Roberts, J. (2006). <i>Multi-Core Programming: Increasing Performance through Software Multi-threading</i>. Intel Press.</span></li>
+<li><span id="race">Vyukov, D., &amp; Gerrand, A. Introducing the Go Race Detector. The Go Blog. Retrieved from \urlhttp://blog.golang.org/race-detector</span></li>
+<li><span id="valgrind">Valgrind.org. Helgrind: a thread error detector. Valgrind.org. Retrieved from \urlhttp://valgrind.org/docs/manual/hg-manual.html</span></li>
+<li><span id="threadsanitizer">Code.google.com. ThreadSanitizer Cpp Manual. Google. Retrieved from \urlhttp://code.google.com/p/thread-sanitizer/wiki/CppManual</span></li>
+<li><span id="package-sync">Golang.org. sync. Golang.org. Retrieved from \urlhttp://golang.org/pkg/sync/</span></li>
+<li><span id="concurrency-patterns">Gerrand, A. Go Concurrency Patterns: Timing out, moving on. The Go Blog. Retrieved from \urlhttp://blog.golang.org/go-concurrency-patterns-timing-out-and</span></li>
+<li><span id="pthreads">Barney, B. POSIX Threads Programming. computing.llnl.gov. Retrieved from \urlhttps://computing.llnl.gov/tutorials/pthreads</span></li>
+<li><span id="pthreads-attributes">Marshall, D. (1999). Further Threads Programming: Thread Attributes (POSIX). cs.cf.ac.uk. Retrieved from \urlhttp://www.cs.cf.ac.uk/Dave/C/node30.html</span></li>
+<li><span id="package-atomic">Golang.org. atomic. Golang.org. Retrieved from \urlhttp://golang.org/pkg/atomic/</span></li>
+<li><span id="package-runtime">Golang.org. runtime. Golang.org. Retrieved from \urlhttp://golang.org/pkg/runtime/</span></li>
+<li><span id="decl-syntax">Pike, R. Go’s Delcaration Syntax. The Go Blog. Retrieved from \urlhttp://blog.golang.org/gos-declaration-syntax</span></li>
+<li><span id="tech-talk">Pike, R. (2009). The Go Programming Language. Google. Retrieved from \urlhttp://www.youtube.com/watch?v=rKnDgT73v8s#t=8m53</span></li>
+<li><span id="debian-benchmark">Debian. Debian’s Computer Language Benchmarks Game on a x64 Ubuntu : Intel Q6600 quad-core. Debian. Retrieved from \urlhttp://benchmarksgame.alioth.debian.org/u64q/which-programs-are-fastest.php?gpp=on&java=on&go=on&ghc=on&sbcl=on&csharp=on&hipe=on&python3=on&yarv=on&calc=chart</span></li>
+<li><span id="debian-benchmark-conclusion">Debian. And please don’t jump to conclusions! Debian. Retrieved from \urlhttp://benchmarksgame.alioth.debian.org/dont-jump-to-conclusions.php</span></li>
+<li><span id="loop-recognition">Hundt, R. (2011). Loop Recognition in C++/Java/Go/Scala. In <i>Proceedings of Scala Days 2011</i>. Retrieved from https://days2011.scala-lang.org/sites/days2011/files/ws3-1-Hundt.pdf</span></li>
+<li><span id="profiling">Cox, R. (2013). Profiling Go Programs. The Go Blog. Retrieved from \urlhttp://blog.golang.org/profiling-go-programs</span></li>
+<li><span id="currently-using">go-wiki. Currently Using Go. go-wiki. Retrieved from \urlhttps://code.google.com/p/go-wiki/wiki/GoUsers</span></li></ol>
+
+<div class="footnotes">
+<hr>
+<ol>
+
+<li id="fn1">
+<p>The official web site distributes an ebook of a description of the
+language: <a href="http://www.usingcsp.com/">http://www.usingcsp.com/</a>&nbsp;<a href="#fnref1" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn2">
+<p>For a description of the producer–consumer problem, see <a href="http://en.wikipedia.org/wiki/Producer%E2%80%93consumer_problem">the
+Wikipedia
+article</a>.&nbsp;<a href="#fnref2" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn3">
+<p>An excellent concrete example of this mantra can be seen in an
+interactive Code Walk on the Go web site, which was too lengthy to
+include in this paper. <a href="http://golang.org/doc/codewalk/sharemem/">http://golang.org/doc/codewalk/sharemem/</a>&nbsp;<a href="#fnref3" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn4">
+<p>This is, of course, a simplified example. One could design a
+parallel summation using a more reasonable approach, such as data
+segmentation. There is no reason to use a single shared variable for
+a simple sum like this.&nbsp;<a href="#fnref4" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn5">
+<p>If the reader has never seen slices before, or if this is
+otherwise confusing, see <a href="http://golang.org/ref/spec#Slice_expressions">“Slice expressions” in the Go Language
+Specification</a>, or for
+a more detailed discussion, the Go Blog article <a href="http://blog.golang.org/go-slices-usage-and-internals">“Go Slices: usage
+and
+internals”</a>.&nbsp;<a href="#fnref5" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn6">
+<p>Although this approach may introduce a <em>live lock</em> if many threads
+continually conflict over the first resource and back off. In this
+case, a statement may be added to the end of the loop which waits a
+random amount of time <a href="#multicoreprogramming">(Akhter &amp; Roberts, 2006, p. 180)</a>.&nbsp;<a href="#fnref6" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn7">
+<p>Go’s break statement stops the execution of only the innermost
+<code>for</code>, <code>select</code>, or <code>switch</code> statement, so a label must be used to
+specify it is the for loop we want to stop. For more detail, see the
+“Labeled statements” and “Break statements” sections of the Go
+Programming Language Specification <a href="#spec">(Golang.org, n.d.)</a>.&nbsp;<a href="#fnref7" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn8">
+<p>Plan 9 is an experimental operating system designed by Bell Labs
+as the potential successor to Unix, used primarily for research
+purposes at the Computing Sciences Research Center. See
+<a href="http://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs">http://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs</a>.&nbsp;<a href="#fnref8" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn9">
+<p>Pike also notes: “It’s worth mentioning that this general approach
+to dependency management is not original; the ideas go back to the
+1970s and flow through languages like Modula-2 and Ada. In the C
+family Java has elements of this approach” <a href="#goatgoogle">(Pike, n.d.)</a>.&nbsp;<a href="#fnref9" rev="footnote">&#8617;</a></p>
+</li>
+
+</ol>
+</div>
+
+  </article>
+
+</div>
+
+      </div>
+    </div>
+
+    <footer class="site-footer">
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Deadlock</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col  footer-col-1">
+        <ul class="contact-list">
+          <li>Deadlock</li>
+          <li><a href="mailto:skylerhawthorne@gmail.com">skylerhawthorne@gmail.com</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col  footer-col-2">
+        <ul class="social-media-list">
+          
+          <li>
+            <a href="https://github.com/dead10ck">
+              <span class="icon  icon--github">
+                <svg viewBox="0 0 16 16">
+                  <path fill="#828282" d="M7.999,0.431c-4.285,0-7.76,3.474-7.76,7.761 c0,3.428,2.223,6.337,5.307,7.363c0.388,0.071,0.53-0.168,0.53-0.374c0-0.184-0.007-0.672-0.01-1.32 c-2.159,0.469-2.614-1.04-2.614-1.04c-0.353-0.896-0.862-1.135-0.862-1.135c-0.705-0.481,0.053-0.472,0.053-0.472 c0.779,0.055,1.189,0.8,1.189,0.8c0.692,1.186,1.816,0.843,2.258,0.645c0.071-0.502,0.271-0.843,0.493-1.037 C4.86,11.425,3.049,10.76,3.049,7.786c0-0.847,0.302-1.54,0.799-2.082C3.768,5.507,3.501,4.718,3.924,3.65 c0,0,0.652-0.209,2.134,0.796C6.677,4.273,7.34,4.187,8,4.184c0.659,0.003,1.323,0.089,1.943,0.261 c1.482-1.004,2.132-0.796,2.132-0.796c0.423,1.068,0.157,1.857,0.077,2.054c0.497,0.542,0.798,1.235,0.798,2.082 c0,2.981-1.814,3.637-3.543,3.829c0.279,0.24,0.527,0.713,0.527,1.437c0,1.037-0.01,1.874-0.01,2.129 c0,0.208,0.14,0.449,0.534,0.373c3.081-1.028,5.302-3.935,5.302-7.362C15.76,3.906,12.285,0.431,7.999,0.431z"/>
+                </svg>
+              </span>
+
+              <span class="username">dead10ck</span>
+            </a>
+          </li>
+          
+
+          
+        </ul>
+      </div>
+
+      <div class="footer-col  footer-col-3">
+        <p class="text">A coding blog about various things I'm interested in.
+</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+
+
+  </body>
+
+</html>
