@@ -6,8 +6,8 @@
 </description>
     <link>http://yourdomain.com/</link>
     <atom:link href="http://yourdomain.com/feed.xml" rel="self" type="application/rss+xml" />
-    <pubDate>Tue, 16 Dec 2014 09:48:45 -0800</pubDate>
-    <lastBuildDate>Tue, 16 Dec 2014 09:48:45 -0800</lastBuildDate>
+    <pubDate>Tue, 16 Dec 2014 10:09:53 -0800</pubDate>
+    <lastBuildDate>Tue, 16 Dec 2014 10:09:53 -0800</lastBuildDate>
     <generator>Jekyll v2.4.0</generator>
     
       <item>
@@ -17,7 +17,7 @@ Parallel Processing at San José State University. My comparison with C is
 definitely very limited in scope—a more fair comparison would need
 consideration of many other libraries besides &lt;code&gt;pthreads&lt;/code&gt;. However, this
 treatment would have taken much more time than I had in the semester.
-In any case, my hope is that it is an enlightening nonetheless.&lt;/p&gt;
+In any case, my hope is that it is enlightening nonetheless.&lt;/p&gt;
 
 &lt;hr&gt;
 
