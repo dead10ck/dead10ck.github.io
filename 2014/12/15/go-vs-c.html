@@ -198,29 +198,29 @@ and then have an independent thread wait for changes to that data before
 proceeding, it is necessary to explicitly lock the variable, perform the
 operations, and signal the condition to allow the waiting threads to
 execute.</p>
-<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
-        <span class="p">...</span>
-        <span class="c1">// create worker threads</span>
-        <span class="p">...</span>
-        <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
-        <span class="n">ourFlag</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">someValue</span><span class="p">;</span>
-        <span class="n">pthread_cond_broadcast</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">cv</span><span class="p">);</span>
-        <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
-        <span class="p">...</span>
-    <span class="p">}</span>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+    <span class="p">...</span>
+    <span class="c1">// create worker threads</span>
+    <span class="p">...</span>
+    <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+    <span class="n">ourFlag</span><span class="p">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">someValue</span><span class="p">;</span>
+    <span class="n">pthread_cond_broadcast</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">cv</span><span class="p">);</span>
+    <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+    <span class="p">...</span>
+<span class="p">}</span>
 </code></pre></div>
 <p>Similarly, within the worker thread, one must wait on the mutex lock,
 then wait on the condition variable before doing something with the
 changed data.</p>
-<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="kt">void</span><span class="o">*</span> <span class="nf">workerThread</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">args</span><span class="p">)</span> <span class="p">{</span>
-        <span class="p">...</span>
-        <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
-        <span class="n">pthread_cond_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">cv</span><span class="p">,</span>
-            <span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
-        <span class="c1">// do something with ourFlag.data</span>
-        <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
-        <span class="p">...</span>
-    <span class="p">}</span>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="kt">void</span><span class="o">*</span> <span class="nf">workerThread</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">args</span><span class="p">)</span> <span class="p">{</span>
+    <span class="p">...</span>
+    <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+    <span class="n">pthread_cond_wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">cv</span><span class="p">,</span>
+        <span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+    <span class="c1">// do something with ourFlag.data</span>
+    <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ourFlag</span><span class="p">.</span><span class="n">mutex</span><span class="p">);</span>
+    <span class="p">...</span>
+<span class="p">}</span>
 </code></pre></div>
 <p>In order to avoid data hazards and/or race conditions, access to the
 data must be explicitly managed by the programmer by bundling the
@@ -484,13 +484,13 @@ critical code sections, one approach is to instruct a thread to release
 any resources it currently holds if locking another resource results in
 failure <a href="#multicoreprogramming">(Akhter &amp; Roberts, 2006, p. 180)</a>. In C, this can be done with the
 <code>pthread</code> function <code>pthread_mutex_trylock</code>.<sup id="fnref7"><a href="#fn7" rel="footnote">7</a></sup></p>
-<div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="k">while</span> <span class="p">(</span><span class="nb">true</span><span class="p">)</span> <span class="p">{</span>
-        <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex1</span><span class="p">);</span>
-        <span class="k">if</span><span class="p">(</span><span class="n">pthread_mutex_trylock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-            <span class="k">break</span><span class="p">;</span>
-        <span class="p">}</span>
-        <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex2</span><span class="p">);</span>
+<div class="highlight"><pre><code class="language-c" data-lang="c"><span class="k">while</span> <span class="p">(</span><span class="nb">true</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex1</span><span class="p">);</span>
+    <span class="k">if</span><span class="p">(</span><span class="n">pthread_mutex_trylock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">break</span><span class="p">;</span>
     <span class="p">}</span>
+    <span class="n">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex2</span><span class="p">);</span>
+<span class="p">}</span>
 </code></pre></div>
 <p>In Go, however, if mutex variables absolutely must be used, this
 approach may not work, as mutex behavior is more strict than in C’s
@@ -508,14 +508,14 @@ on channel blocks. In Go, the <code>select</code> statement is analogous to a
 <code>switch</code> statement for channels. Essentially, the cases will try to
 execute a given operation on a channel, and if that operation <em>would</em>
 block, then it tries a different case.</p>
-<div class="highlight"><pre><code class="language-go" data-lang="go">    <span class="k">select</span> <span class="p">{</span>
-    <span class="k">case</span> <span class="nx">a</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch1</span><span class="p">:</span>
-        <span class="c1">// use a</span>
-    <span class="k">case</span> <span class="nx">b</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch2</span><span class="p">:</span>
-        <span class="c1">// use b</span>
-    <span class="k">default</span><span class="p">:</span>
-        <span class="c1">// receiving from both a and b would block</span>
-    <span class="p">}</span>
+<div class="highlight"><pre><code class="language-go" data-lang="go"><span class="k">select</span> <span class="p">{</span>
+<span class="k">case</span> <span class="nx">a</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch1</span><span class="p">:</span>
+    <span class="c1">// use a</span>
+<span class="k">case</span> <span class="nx">b</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch2</span><span class="p">:</span>
+    <span class="c1">// use b</span>
+<span class="k">default</span><span class="p">:</span>
+    <span class="c1">// receiving from both a and b would block</span>
+<span class="p">}</span>
 </code></pre></div>
 <p>Here, if the program can receive from the channel <code>ch1</code>, then it assigns
 the received value to the variable <code>a</code>, and <code>a</code> can be used within the
@@ -525,18 +525,18 @@ be used in the code following the case statement. If both <code>ch1</code> and
 <code>ch2</code> are ready, the program picks one case at random. If neither are
 ready, the code in the default case is run. Therefore, a tactic
 analogous to the “try and back off” method can be used.<sup id="fnref8"><a href="#fn8" rel="footnote">8</a></sup></p>
-<div class="highlight"><pre><code class="language-go" data-lang="go">    <span class="nx">OuterLoop</span><span class="p">:</span>
-    <span class="k">for</span> <span class="p">{</span>
-        <span class="nx">a</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch1</span>
-        <span class="k">select</span> <span class="p">{</span>
-        <span class="k">case</span> <span class="nx">b</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch2</span><span class="p">:</span>
-            <span class="k">break</span> <span class="nx">OuterLoop</span>
-        <span class="k">default</span><span class="p">:</span>
-            <span class="nx">ch1</span> <span class="o">&lt;-</span> <span class="nx">a</span>
-            <span class="c1">// wait</span>
-        <span class="p">}</span>
+<div class="highlight"><pre><code class="language-go" data-lang="go"><span class="nx">OuterLoop</span><span class="p">:</span>
+<span class="k">for</span> <span class="p">{</span>
+    <span class="nx">a</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch1</span>
+    <span class="k">select</span> <span class="p">{</span>
+    <span class="k">case</span> <span class="nx">b</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch2</span><span class="p">:</span>
+        <span class="k">break</span> <span class="nx">OuterLoop</span>
+    <span class="k">default</span><span class="p">:</span>
+        <span class="nx">ch1</span> <span class="o">&lt;-</span> <span class="nx">a</span>
+        <span class="c1">// wait</span>
     <span class="p">}</span>
-    <span class="c1">// use a and b</span>
+<span class="p">}</span>
+<span class="c1">// use a and b</span>
 </code></pre></div>
 <p>Given how flexible channels are in general, there are, of course, many
 more ways one can use the select statement to avoid deadlocks. For
