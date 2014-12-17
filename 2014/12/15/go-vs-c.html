@@ -391,7 +391,7 @@ unlock just after.</p>
 </code></pre></div>
 <p>Similarly, for analogous Go code, one could use a buffered channel of
 size 1 to restrict access to the sum variable to one goroutine at a
-time.</p>
+time.<sup id="fnref5"><a href="#fn5" rel="footnote">5</a></sup></p>
 <div class="highlight"><pre><code class="language-go" data-lang="go"><span class="kd">func</span> <span class="nx">sum</span><span class="p">(</span><span class="nx">sumChan</span> <span class="kd">chan</span> <span class="kt">int</span><span class="p">,</span> <span class="nx">done</span> <span class="kd">chan</span> <span class="kt">int</span><span class="p">)</span> <span class="p">{</span>
     <span class="k">for</span> <span class="nx">i</span> <span class="o">:=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="p">&lt;</span> <span class="mi">1000000</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span> <span class="p">{</span>
         <span class="c1">// sumChan has a buffer of size 1, so receiving blocks if there</span>
@@ -454,7 +454,7 @@ references to an underlying array, and they provide operators which make
 it easy to segment that array. For example, one can “reslice” a slice
 with the bracket operator. If <code>arr</code> is a slice variable, then
 <code>arr[:len(arr)/2]</code> will return a slice which can access the first half
-of <code>arr</code>’s elements.<sup id="fnref5"><a href="#fn5" rel="footnote">5</a></sup> Thus, if <code>sum</code> is a function which returns the
+of <code>arr</code>’s elements.<sup id="fnref6"><a href="#fn6" rel="footnote">6</a></sup> Thus, if <code>sum</code> is a function which returns the
 sum of every element of an integer slice, then</p>
 <div class="highlight"><pre><code class="language-go" data-lang="go"><span class="nx">arr</span> <span class="o">:=</span> <span class="p">[]</span><span class="kt">int</span><span class="p">{</span><span class="mi">7</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="o">-</span><span class="mi">9</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">0</span><span class="p">}</span>
 <span class="nx">partSums</span> <span class="o">:=</span> <span class="nb">make</span><span class="p">(</span><span class="kd">chan</span> <span class="kt">int</span><span class="p">)</span>
@@ -483,7 +483,7 @@ and Go to help avoid deadlocking. When using mutex variables to guard
 critical code sections, one approach is to instruct a thread to release
 any resources it currently holds if locking another resource results in
 failure <a href="#multicoreprogramming">(Akhter &amp; Roberts, 2006, p. 180)</a>. In C, this can be done with the
-<code>pthread</code> function <code>pthread_mutex_trylock</code>.<sup id="fnref6"><a href="#fn6" rel="footnote">6</a></sup></p>
+<code>pthread</code> function <code>pthread_mutex_trylock</code>.<sup id="fnref7"><a href="#fn7" rel="footnote">7</a></sup></p>
 <div class="highlight"><pre><code class="language-c" data-lang="c">    <span class="k">while</span> <span class="p">(</span><span class="nb">true</span><span class="p">)</span> <span class="p">{</span>
         <span class="n">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex1</span><span class="p">);</span>
         <span class="k">if</span><span class="p">(</span><span class="n">pthread_mutex_trylock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">mutex2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
@@ -524,7 +524,7 @@ from <code>ch2</code>, it assigns the received value to the variable <code>b</co
 be used in the code following the case statement. If both <code>ch1</code> and
 <code>ch2</code> are ready, the program picks one case at random. If neither are
 ready, the code in the default case is run. Therefore, a tactic
-analogous to the “try and back off” method can be used.<sup id="fnref7"><a href="#fn7" rel="footnote">7</a></sup></p>
+analogous to the “try and back off” method can be used.<sup id="fnref8"><a href="#fn8" rel="footnote">8</a></sup></p>
 <div class="highlight"><pre><code class="language-go" data-lang="go">    <span class="nx">OuterLoop</span><span class="p">:</span>
     <span class="k">for</span> <span class="p">{</span>
         <span class="nx">a</span> <span class="o">:=</span> <span class="o">&lt;-</span><span class="nx">ch1</span>
@@ -671,7 +671,7 @@ takes 27 minutes to compile today.</p>
 <p>Pike says that “the origin myth for Go states that it was during one of
 those 45 minute builds that Go was conceived” <a href="#goatgoogle">(Pike, n.d.)</a>. The Go
 compiler was based on an approach that the Plan 9 team designed to
-remedy the repeated dependency problems described above.<sup id="fnref8"><a href="#fn8" rel="footnote">8</a></sup>
+remedy the repeated dependency problems described above.<sup id="fnref9"><a href="#fn9" rel="footnote">9</a></sup>
 Essentially, how it works is it builds a dependency graph from the
 source files themselves by reading all of the import statements from
 every file, and then compiling the lowest-level dependencies first by
@@ -685,7 +685,7 @@ notes that this design “has the important effect that when the compiler
 executes an import clause, it opens exactly one file, the object file
 identified by the string in the import clause…in effect, the compiler
 writes the header file when the Go source file is
-compiled” <a href="#goatgoogle">(Pike, n.d.)</a>.<sup id="fnref9"><a href="#fn9" rel="footnote">9</a></sup></p>
+compiled” <a href="#goatgoogle">(Pike, n.d.)</a>.<sup id="fnref10"><a href="#fn10" rel="footnote">10</a></sup></p>
 
 <p>In addition to this, the language itself was designed with efficient
 compile time in mind. Its compact grammar and regular syntax makes it
@@ -845,41 +845,50 @@ a simple sum like this.&nbsp;<a href="#fnref4" rev="footnote">&#8617;</a></p>
 </li>
 
 <li id="fn5">
+<p>As some readers have pointed out, this is an overuse of channels.
+A more appropriate synchronization method in this case would be to
+simply protect the incrementation with a mutex variable. However,
+my intent here was not to provide an efficient implementation
+for others to use in their projects, but rather to demonstrate
+the versatility of channels.&nbsp;<a href="#fnref5" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn6">
 <p>If the reader has never seen slices before, or if this is
 otherwise confusing, see <a href="http://golang.org/ref/spec#Slice_expressions">“Slice expressions” in the Go Language
 Specification</a>, or for
 a more detailed discussion, the Go Blog article <a href="http://blog.golang.org/go-slices-usage-and-internals">“Go Slices: usage
 and
-internals”</a>.&nbsp;<a href="#fnref5" rev="footnote">&#8617;</a></p>
-</li>
-
-<li id="fn6">
-<p>Although this approach may introduce a <em>live lock</em> if many threads
-continually conflict over the first resource and back off. In this
-case, a statement may be added to the end of the loop which waits a
-random amount of time <a href="#multicoreprogramming">(Akhter &amp; Roberts, 2006, p. 180)</a>.&nbsp;<a href="#fnref6" rev="footnote">&#8617;</a></p>
+internals”</a>.&nbsp;<a href="#fnref6" rev="footnote">&#8617;</a></p>
 </li>
 
 <li id="fn7">
+<p>Although this approach may introduce a <em>live lock</em> if many threads
+continually conflict over the first resource and back off. In this
+case, a statement may be added to the end of the loop which waits a
+random amount of time <a href="#multicoreprogramming">(Akhter &amp; Roberts, 2006, p. 180)</a>.&nbsp;<a href="#fnref7" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn8">
 <p>Go’s break statement stops the execution of only the innermost
 <code>for</code>, <code>select</code>, or <code>switch</code> statement, so a label must be used to
 specify it is the for loop we want to stop. For more detail, see the
 “Labeled statements” and “Break statements” sections of the Go
-Programming Language Specification <a href="#spec">(Golang.org, n.d.)</a>.&nbsp;<a href="#fnref7" rev="footnote">&#8617;</a></p>
-</li>
-
-<li id="fn8">
-<p>Plan 9 is an experimental operating system designed by Bell Labs
-as the potential successor to Unix, used primarily for research
-purposes at the Computing Sciences Research Center. See
-<a href="http://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs">http://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs</a>.&nbsp;<a href="#fnref8" rev="footnote">&#8617;</a></p>
+Programming Language Specification <a href="#spec">(Golang.org, n.d.)</a>.&nbsp;<a href="#fnref8" rev="footnote">&#8617;</a></p>
 </li>
 
 <li id="fn9">
+<p>Plan 9 is an experimental operating system designed by Bell Labs
+as the potential successor to Unix, used primarily for research
+purposes at the Computing Sciences Research Center. See
+<a href="http://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs">http://en.wikipedia.org/wiki/Plan_9_from_Bell_Labs</a>.&nbsp;<a href="#fnref9" rev="footnote">&#8617;</a></p>
+</li>
+
+<li id="fn10">
 <p>Pike also notes: “It’s worth mentioning that this general approach
 to dependency management is not original; the ideas go back to the
 1970s and flow through languages like Modula-2 and Ada. In the C
-family Java has elements of this approach” <a href="#goatgoogle">(Pike, n.d.)</a>.&nbsp;<a href="#fnref9" rev="footnote">&#8617;</a></p>
+family Java has elements of this approach” <a href="#goatgoogle">(Pike, n.d.)</a>.&nbsp;<a href="#fnref10" rev="footnote">&#8617;</a></p>
 </li>
 
 </ol>
