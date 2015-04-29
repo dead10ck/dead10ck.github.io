@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Ipv4Addr",""],["Ipv6Addr",""],["UnixAddr",""]],"enum":[["AddressFamily",""],["InetAddr",""],["IpAddr",""],["SockAddr","Represents a socket address"]]});
